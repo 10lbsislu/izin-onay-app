@@ -84,7 +84,7 @@ app.http("createRequest", {
         body: JSON.stringify({ request: newRequest }),
       };
     } catch (err) {
-      context.log.error("createRequest hata:", err);
+      context.error("createRequest hata:", err);
       return {
         status: 500,
         headers,

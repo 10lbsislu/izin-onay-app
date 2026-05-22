@@ -127,7 +127,7 @@ app.http("updateRequest", {
         body: JSON.stringify({ request: updatedRequest }),
       };
     } catch (err) {
-      context.log.error("updateRequest hata:", err);
+      context.error("updateRequest hata:", err);
       return {
         status: 500,
         headers,

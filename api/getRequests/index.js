@@ -73,7 +73,7 @@ app.http("getRequests", {
         }),
       };
     } catch (err) {
-      context.log.error("getRequests hata:", err);
+      context.error("getRequests hata:", err);
       return {
         status: 500,
         headers,

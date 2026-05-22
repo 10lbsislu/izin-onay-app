@@ -48,7 +48,7 @@ app.http("searchUsers", {
 
       return { status: 200, headers, body: JSON.stringify({ users }) };
     } catch (err) {
-      context.log.error("searchUsers hata:", err.message);
+      context.error("searchUsers hata:", err.message);
       return { status: 500, headers, body: JSON.stringify({ error: err.message }) };
     }
   },

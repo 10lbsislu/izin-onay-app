@@ -59,7 +59,7 @@ app.http("manageApprovers", {
         body: JSON.stringify({ error: "Bilinmeyen action." }),
       };
     } catch (err) {
-      context.log.error("manageApprovers hata:", err);
+      context.error("manageApprovers hata:", err);
       return {
         status: 500,
         headers,

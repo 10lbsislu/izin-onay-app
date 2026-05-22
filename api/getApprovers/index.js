@@ -24,7 +24,7 @@ app.http("getApprovers", {
         body: JSON.stringify({ approvers }),
       };
     } catch (err) {
-      context.log.error("getApprovers hata:", err);
+      context.error("getApprovers hata:", err);
       return {
         status: 500,
         headers,
