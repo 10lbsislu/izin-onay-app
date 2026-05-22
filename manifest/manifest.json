@@ -2,13 +2,13 @@
   "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.17/MicrosoftTeams.schema.json",
   "manifestVersion": "1.17",
   "version": "1.0.0",
-  "id": "{{TEAMS_APP_ID}}",
-  "packageName": "com.sirketiniz.izin-onay",
+  "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "packageName": "com.pakyurek.izin-onay",
   "developer": {
-    "name": "Şirketiniz",
-    "websiteUrl": "https://your-domain.com",
-    "privacyUrl": "https://your-domain.com/privacy",
-    "termsOfUseUrl": "https://your-domain.com/terms"
+    "name": "PAKYÜREK TARIM SAN. TİC. A.Ş.",
+    "websiteUrl": "https://wonderful-field-04c5e0703.7.azurestaticapps.net",
+    "privacyUrl": "https://wonderful-field-04c5e0703.7.azurestaticapps.net",
+    "termsOfUseUrl": "https://wonderful-field-04c5e0703.7.azurestaticapps.net"
   },
   "icons": {
     "color": "color.png",
@@ -27,40 +27,18 @@
     {
       "entityId": "izin-onay-tab",
       "name": "İzin Onay",
-      "contentUrl": "https://{{FRONTEND_DOMAIN}}/",
-      "websiteUrl": "https://{{FRONTEND_DOMAIN}}/",
-      "scopes": ["personal", "team", "groupChat"]
-    }
-  ],
-  "configurableTabs": [
-    {
-      "configurationUrl": "https://{{FRONTEND_DOMAIN}}/config",
-      "canUpdateConfiguration": true,
-      "scopes": ["team", "groupChat"]
+      "contentUrl": "https://wonderful-field-04c5e0703.7.azurestaticapps.net",
+      "websiteUrl": "https://wonderful-field-04c5e0703.7.azurestaticapps.net",
+      "scopes": ["personal"]
     }
   ],
   "permissions": ["identity", "messageTeamMembers"],
   "validDomains": [
-    "{{FRONTEND_DOMAIN}}",
-    "login.microsoftonline.com",
-    "graph.microsoft.com"
+    "wonderful-field-04c5e0703.7.azurestaticapps.net",
+    "izin-onay-api-gghsc5fgf8e8dsh3.westeurope-01.azurewebsites.net"
   ],
   "webApplicationInfo": {
-    "id": "{{CLIENT_ID}}",
-    "resource": "api://{{FRONTEND_DOMAIN}}/{{CLIENT_ID}}"
-  },
-  "authorization": {
-    "permissions": {
-      "resourceSpecific": [
-        {
-          "name": "ChannelMessage.Send.Group",
-          "type": "Application"
-        },
-        {
-          "name": "ChatMessage.Send.User",
-          "type": "Delegated"
-        }
-      ]
-    }
+    "id": "9ad8e452-bf38-4654-9f1b-3194fb6ed859",
+    "resource": "api://wonderful-field-04c5e0703.7.azurestaticapps.net/9ad8e452-bf38-4654-9f1b-3194fb6ed859"
   }
 }
