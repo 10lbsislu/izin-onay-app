@@ -108,27 +108,48 @@ function AppContent() {
   useEffect(() => {
     const init = async () => {
       try {
-        let accessToken: string | null = null;
+        setIsInitializing(true);
 
-        if (teamsCtx.teamsToken) {
-          // Teams SSO token varsa backend'e OBO exchange için gönder
-          // Burada basitlik için doğrudan kullanıyoruz
-          accessToken = teamsCtx.teamsToken;
-        } else if (isAuthenticated && accounts.length > 0) {
-          // Fallback: MSAL browser flow
-          const result = await instance.acquireTokenSilent({
-            ...loginRequest,
-            account: accounts[0],
-          });
-          accessToken = result.accessToken;
-        } else {
+        // Önce Graph'tan kullanıcı bilgisini al (token olmadan da dene)
+        let accessToken: string | null = teamsCtx.teamsToken;
+
+        // Teams token yoksa MSAL ile dene
+        if (!accessToken) {
+          if (isAuthenticated && accounts.length > 0) {
+            try {
+              const result = await instance.acquireTokenSilent({
+                ...loginRequest,
+                account: accounts[0],
+              });
+              accessToken = result.accessToken;
+            } catch {
+              try {
+                const result = await instance.acquireTokenPopup(loginRequest);
+                accessToken = result.accessToken;
+              } catch (err) {
+                console.error("MSAL popup hatası:", err);
+              }
+            }
+          } else {
+            // Giriş yok, popup ile giriş yap
+            try {
+              const result = await instance.loginPopup(loginRequest);
+              accessToken = result.accessToken;
+            } catch (err) {
+              console.error("Login hatası:", err);
+              setIsInitializing(false);
+              return;
+            }
+          }
+        }
+
+        if (!accessToken) {
           setIsInitializing(false);
           return;
         }
 
         setToken(accessToken);
 
-        // Me endpoint ile kullanıcı bilgisi al
         const meRes = await fetch("https://graph.microsoft.com/v1.0/me", {
           headers: { Authorization: `Bearer ${accessToken}` },
         });
@@ -142,7 +163,6 @@ function AppContent() {
         };
         setCurrentUser(user);
 
-        // Admin kontrolü: onaylayıcı listesinde mi?
         try {
           const approvers = await getApprovers(accessToken);
           setIsAdmin(approvers.some((a) => a.id === me.id));
