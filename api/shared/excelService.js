@@ -117,11 +117,14 @@ async function updateRequest(requestId, updates) {
 async function getAllApprovers() {
   const client = getAppGraphClient();
   try {
+    const SITE_ID = process.env.SHAREPOINT_SITE_ID;
+    const FILE_ID = process.env.EXCEL_FILE_ID;
     const res = await client
-      .api(`${workbookBase()}/tables/OnaylayıcılarTablosu/rows`)
+      .api(`/sites/${SITE_ID}/drive/items/${FILE_ID}/workbook/tables/OnaylayicilarTablosu/rows`)
       .get();
     return (res.value || []).map((r) => rowToApprover(r.values[0]));
-  } catch {
+  } catch (err) {
+    console.error("Excel getAllApprovers error:", err.message);
     return [];
   }
 }
