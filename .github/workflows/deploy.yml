@@ -1,0 +1,108 @@
+name: Deploy — İzin Onay Sistemi
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch: # Elle de tetiklenebilir
+
+jobs:
+
+  # ── 1. API (Azure Functions) ──────────────────────────────────────────────
+  deploy-api:
+    name: API Deploy
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Kodu çek
+        uses: actions/checkout@v4
+
+      - name: Node.js kur
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: api/package.json
+
+      - name: API bağımlılıklarını yükle
+        run: |
+          cd api
+          npm ci
+
+      - name: Azure Functions'a deploy et
+        uses: Azure/functions-action@v1
+        with:
+          app-name: izin-onay-api
+          package: ./api
+          publish-profile: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
+
+      - name: Ortam değişkenlerini ayarla
+        uses: Azure/appservice-settings@v1
+        with:
+          app-name: izin-onay-api
+          app-settings-json: |
+            [
+              { "name": "TENANT_ID",            "value": "${{ secrets.AZURE_TENANT_ID }}" },
+              { "name": "CLIENT_ID",             "value": "${{ secrets.AZURE_CLIENT_ID }}" },
+              { "name": "CLIENT_SECRET",         "value": "${{ secrets.AZURE_CLIENT_SECRET }}" },
+              { "name": "SHAREPOINT_SITE_ID",    "value": "${{ secrets.SHAREPOINT_SITE_ID }}" },
+              { "name": "EXCEL_FILE_ID",         "value": "${{ secrets.EXCEL_FILE_ID }}" },
+              { "name": "TEAMS_TEAM_ID",         "value": "${{ secrets.TEAMS_TEAM_ID }}" },
+              { "name": "TEAMS_CHANNEL_ID",      "value": "${{ secrets.TEAMS_CHANNEL_ID }}" },
+              { "name": "FRONTEND_URL",          "value": "https://izin-onay-frontend.azurestaticapps.net" }
+            ]
+        with:
+          publish-profile: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
+
+  # ── 2. Frontend (Azure Static Web Apps) ──────────────────────────────────
+  deploy-frontend:
+    name: Frontend Deploy
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Kodu çek
+        uses: actions/checkout@v4
+
+      - name: Node.js kur
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: package.json
+
+      - name: Bağımlılıkları yükle
+        run: npm ci
+
+      - name: Build al
+        run: npm run build
+        env:
+          VITE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          VITE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          VITE_REDIRECT_URI: https://izin-onay-frontend.azurestaticapps.net
+          VITE_API_BASE_URL: https://izin-onay-api.azurewebsites.net/api
+
+      - name: Azure Static Web Apps'e deploy et
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          action: upload
+          app_location: /
+          output_location: dist
+          skip_app_build: true
+
+  # ── 3. PR kapatılınca staging'i temizle ─────────────────────────────────
+  cleanup-staging:
+    name: Staging Temizle
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && github.event.action == 'closed'
+
+    steps:
+      - name: Staging ortamını kaldır
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+          action: close

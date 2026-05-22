@@ -1,0 +1,24 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "node",
+
+    "TENANT_ID": "your-tenant-id",
+    "CLIENT_ID": "your-client-id",
+    "CLIENT_SECRET": "your-client-secret",
+
+    "SHAREPOINT_SITE_ID": "your-sharepoint-site-id",
+    "EXCEL_FILE_ID": "your-excel-file-item-id",
+
+    "TEAMS_CHANNEL_ID": "teams-channel-id-for-notifications",
+    "TEAMS_TEAM_ID": "teams-team-id",
+
+    "FRONTEND_URL": "https://localhost:3000"
+  },
+  "Host": {
+    "LocalHttpPort": 7071,
+    "CORS": "https://localhost:3000",
+    "CORSCredentials": true
+  }
+}

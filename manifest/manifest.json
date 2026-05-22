@@ -1,0 +1,66 @@
+{
+  "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.17/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.17",
+  "version": "1.0.0",
+  "id": "{{TEAMS_APP_ID}}",
+  "packageName": "com.sirketiniz.izin-onay",
+  "developer": {
+    "name": "Şirketiniz",
+    "websiteUrl": "https://your-domain.com",
+    "privacyUrl": "https://your-domain.com/privacy",
+    "termsOfUseUrl": "https://your-domain.com/terms"
+  },
+  "icons": {
+    "color": "color.png",
+    "outline": "outline.png"
+  },
+  "name": {
+    "short": "İzin Onay",
+    "full": "İzin Onay Sistemi"
+  },
+  "description": {
+    "short": "İzin taleplerini oluşturun ve yönetin",
+    "full": "Çalışanların izin taleplerini oluşturabildiği, yöneticilerin onaylayıp reddedebileceği entegre bir onay sistemi."
+  },
+  "accentColor": "#0078d4",
+  "staticTabs": [
+    {
+      "entityId": "izin-onay-tab",
+      "name": "İzin Onay",
+      "contentUrl": "https://{{FRONTEND_DOMAIN}}/",
+      "websiteUrl": "https://{{FRONTEND_DOMAIN}}/",
+      "scopes": ["personal", "team", "groupChat"]
+    }
+  ],
+  "configurableTabs": [
+    {
+      "configurationUrl": "https://{{FRONTEND_DOMAIN}}/config",
+      "canUpdateConfiguration": true,
+      "scopes": ["team", "groupChat"]
+    }
+  ],
+  "permissions": ["identity", "messageTeamMembers"],
+  "validDomains": [
+    "{{FRONTEND_DOMAIN}}",
+    "login.microsoftonline.com",
+    "graph.microsoft.com"
+  ],
+  "webApplicationInfo": {
+    "id": "{{CLIENT_ID}}",
+    "resource": "api://{{FRONTEND_DOMAIN}}/{{CLIENT_ID}}"
+  },
+  "authorization": {
+    "permissions": {
+      "resourceSpecific": [
+        {
+          "name": "ChannelMessage.Send.Group",
+          "type": "Application"
+        },
+        {
+          "name": "ChatMessage.Send.User",
+          "type": "Delegated"
+        }
+      ]
+    }
+  }
+}
