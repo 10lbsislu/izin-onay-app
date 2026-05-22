@@ -4,7 +4,7 @@
  *
  * Excel yapısı:
  *   Sheet "Talepler"    → Tablo: TaleplerTablosu
- *   Sheet "Onaylayıcılar" → Tablo: OnaylayıcılarTablosu
+ *   Sheet "Onaylayıcılar" → Tablo: OnaylayicilarTablosu
  *
  * Kurulum notları:
  *   - SharePoint'te bir Excel dosyası oluşturun
@@ -134,7 +134,7 @@ async function addApprover(approver) {
   const client = getAppGraphClient();
   const row = APPROVER_COLS.map((col) => approver[col] ?? "");
   await client
-    .api(`${workbookBase()}/tables/OnaylayıcılarTablosu/rows/add`)
+    .api(`${workbookBase()}/tables/OnaylayicilarTablosu/rows/add`)
     .post({ values: [row] });
   return approver;
 }
@@ -144,7 +144,7 @@ async function removeApprover(approverId) {
   const client = getAppGraphClient();
 
   const res = await client
-    .api(`${workbookBase()}/tables/OnaylayıcılarTablosu/rows`)
+    .api(`${workbookBase()}/tables/OnaylayicilarTablosu/rows`)
     .get();
 
   const rows = res.value || [];
@@ -154,7 +154,7 @@ async function removeApprover(approverId) {
 
   await client
     .api(
-      `${workbookBase()}/tables/OnaylayıcılarTablosu/rows/itemAt(index=${rowIndex})`
+      `${workbookBase()}/tables/OnaylayicilarTablosu/rows/itemAt(index=${rowIndex})`
     )
     .delete();
 }
