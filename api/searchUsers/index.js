@@ -12,8 +12,6 @@ app.http("searchUsers", {
   methods: ["GET"],
   authLevel: "anonymous",
   handler: async (request, context) => {
-    context.log("searchUsers çağrıldı");
-
     const headers = {
       "Content-Type": "application/json",
       "Access-Control-Allow-Origin": process.env.FRONTEND_URL || "*",
@@ -23,20 +21,20 @@ app.http("searchUsers", {
     try {
       const q = request.query.get("q");
       if (!q || q.trim().length < 2) {
-        return {
-          status: 400,
-          headers,
-          body: JSON.stringify({ error: "En az 2 karakter girin." }),
-        };
+        return { status: 400, headers, body: JSON.stringify({ error: "En az 2 karakter girin." }) };
       }
 
+      const { getAppGraphClient } = require("../shared/graphClient");
       const client = getAppGraphClient();
 
-      // Graph kullanıcı arama — ConsistencyLevel: eventual gerektirir
       const result = await client
         .api("/users")
         .header("ConsistencyLevel", "eventual")
-        .query({ "$search": `"displayName:${q}"`, "$select": "id,displayName,mail,jobTitle,department,userPrincipalName", "$top": "10", "$filter": "accountEnabled eq true", "$count": "true" })
+        .header("$count", "true")
+        .search(`"displayName:${q}"`)
+        .select("id,displayName,mail,jobTitle,department,userPrincipalName")
+        .top(10)
+        .filter("accountEnabled eq true")
         .get();
 
       const users = (result.value || []).map((u) => ({
@@ -48,18 +46,10 @@ app.http("searchUsers", {
         userPrincipalName: u.userPrincipalName,
       }));
 
-      return {
-        status: 200,
-        headers,
-        body: JSON.stringify({ users }),
-      };
+      return { status: 200, headers, body: JSON.stringify({ users }) };
     } catch (err) {
-      context.log.error("searchUsers hata:", err);
-      return {
-        status: 500,
-        headers,
-        body: JSON.stringify({ error: err.message }),
-      };
+      context.log.error("searchUsers hata:", err.message);
+      return { status: 500, headers, body: JSON.stringify({ error: err.message }) };
     }
   },
 });
