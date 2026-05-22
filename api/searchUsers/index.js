@@ -36,11 +36,7 @@ app.http("searchUsers", {
       const result = await client
         .api("/users")
         .header("ConsistencyLevel", "eventual")
-        .search(`"displayName:${q}"`)
-        .select("id,displayName,mail,jobTitle,department,userPrincipalName")
-        .top(10)
-        .orderby("displayName")
-        .filter("accountEnabled eq true")
+        .query({ "$search": `"displayName:${q}"`, "$select": "id,displayName,mail,jobTitle,department,userPrincipalName", "$top": "10", "$filter": "accountEnabled eq true", "$count": "true" })
         .get();
 
       const users = (result.value || []).map((u) => ({
