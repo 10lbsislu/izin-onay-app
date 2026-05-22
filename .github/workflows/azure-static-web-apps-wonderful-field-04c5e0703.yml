@@ -30,7 +30,7 @@ jobs:
           VITE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           VITE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           VITE_REDIRECT_URI: https://wonderful-field-04c5e0703.7.azurestaticapps.net
-          VITE_API_BASE_URL: https://izin-onay-api-gghsc5fgf8e8dsh3.westeurope-01.azurewebsites.net/api
+          VITE_API_BASE_URL: https://izin-onay-api.azurewebsites.net/api
 
       - name: Deploy Frontend
         uses: Azure/static-web-apps-deploy@v1
