@@ -16,16 +16,13 @@ jobs:
     name: Build and Deploy Job
     steps:
       - uses: actions/checkout@v3
-        with:
-          submodules: true
-          lfs: false
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      - name: Install and Build
+      - name: Build Frontend
         run: |
           npm ci
           npm run build
@@ -35,7 +32,7 @@ jobs:
           VITE_REDIRECT_URI: https://wonderful-field-04c5e0703.7.azurestaticapps.net
           VITE_API_BASE_URL: https://izin-onay-api-gghsc5fgf8e8dsh3.westeurope-01.azurewebsites.net/api
 
-      - name: Deploy
+      - name: Deploy Frontend
         uses: Azure/static-web-apps-deploy@v1
         with:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
@@ -43,6 +40,16 @@ jobs:
           action: upload
           app_location: dist
           skip_app_build: true
+
+      - name: Install API dependencies
+        run: cd api && npm ci
+
+      - name: Deploy API
+        uses: Azure/functions-action@v1
+        with:
+          app-name: izin-onay-api
+          package: ./api
+          publish-profile: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
 
   close_pull_request_job:
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
@@ -54,4 +61,4 @@ jobs:
         with:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
           action: close
-          app_location: /
+          app_location: dist
