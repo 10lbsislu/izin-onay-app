@@ -138,19 +138,21 @@ app.http("createRequest", {
 
       await addRequest(newRequest);
 
+      context.log(`[NOTIFY] talep oluşturuldu, bildirimler başlatılıyor — approverId=${approverId} approverEmail=${approverEmail} requesterEmail=${newRequest.requesterEmail}`);
+
       // Kanala Adaptive Card bildirimi (hata ana akışı durdurmaz)
       notifyChannel(newRequest).catch((e) =>
-        context.log.warn("Kanal bildirimi başarısız:", e.message)
+        context.log.warn("[NOTIFY] kanal bildirimi başarısız:", e.message)
       );
 
       // Onaylayıcıya e-posta bildirimi
       notifyApproverByEmail(newRequest, approverEmail).catch((e) =>
-        context.log.warn("Mail bildirimi başarısız:", e.message)
+        context.log.warn("[NOTIFY] mail bildirimi başarısız:", e.message)
       );
 
       // Onaylayıcıya Teams chat bildirimi
       notifyApproverInTeams(newRequest, approverId).catch((e) =>
-        context.log.warn("Teams bildirimi başarısız:", e.message)
+        context.log.warn("[NOTIFY] Teams bildirimi başarısız:", e.message)
       );
 
       return {

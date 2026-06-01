@@ -274,6 +274,8 @@ async function notifyApproverByEmail(request, approverEmail) {
   // Mail'i talepçinin kutusundan gönder — alıcı kim olduğunu kolayca görsün
   const senderUserId = request.requesterEmail || request.requesterId;
 
+  console.log(`[MAIL] gönderiliyor: from=${senderUserId} to=${approverEmail}`);
+
   try {
     await client
       .api(`/users/${senderUserId}/sendMail`)
@@ -285,9 +287,14 @@ async function notifyApproverByEmail(request, approverEmail) {
         },
         saveToSentItems: true,
       });
-    console.log(`Onaylayıcı mail bildirimi gönderildi: ${approverEmail}`);
+    console.log(`[MAIL] BAŞARILI: ${approverEmail}`);
   } catch (err) {
-    console.error("Mail bildirimi hatası:", err.message);
+    console.error(`[MAIL] BAŞARISIZ from=${senderUserId} to=${approverEmail}:`, {
+      message: err.message,
+      statusCode: err.statusCode,
+      code: err.code,
+      body: typeof err.body === "string" ? err.body : JSON.stringify(err.body),
+    });
   }
 }
 
@@ -342,9 +349,12 @@ async function notifyApproverInTeams(request, approverId) {
     ],
   };
 
+  console.log(`[TEAMS] chat oluşturuluyor: requester=${request.requesterId} approver=${approverId}`);
+
+  let chat;
   try {
     // 1) Talepçi ↔ Onaylayıcı arasında 1-1 chat oluştur (varsa Graph aynısını döner)
-    const chat = await client
+    chat = await client
       .api("/chats")
       .post({
         chatType: "oneOnOne",
@@ -363,7 +373,18 @@ async function notifyApproverInTeams(request, approverId) {
       });
 
     if (!chat?.id) throw new Error("Chat ID alınamadı.");
+    console.log(`[TEAMS] chat OK: ${chat.id}`);
+  } catch (err) {
+    console.error(`[TEAMS] chat oluşturma BAŞARISIZ:`, {
+      message: err.message,
+      statusCode: err.statusCode,
+      code: err.code,
+      body: typeof err.body === "string" ? err.body : JSON.stringify(err.body),
+    });
+    return;
+  }
 
+  try {
     // 2) Adaptive Card mesajı gönder
     await client
       .api(`/chats/${chat.id}/messages`)
@@ -381,9 +402,14 @@ async function notifyApproverInTeams(request, approverId) {
         ],
       });
 
-    console.log(`Teams chat bildirimi gönderildi: ${approverId}`);
+    console.log(`[TEAMS] mesaj BAŞARILI: ${approverId}`);
   } catch (err) {
-    console.error("Teams chat bildirimi hatası:", err.message);
+    console.error(`[TEAMS] mesaj gönderme BAŞARISIZ:`, {
+      message: err.message,
+      statusCode: err.statusCode,
+      code: err.code,
+      body: typeof err.body === "string" ? err.body : JSON.stringify(err.body),
+    });
   }
 }
 
