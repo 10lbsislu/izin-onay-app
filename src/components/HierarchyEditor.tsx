@@ -331,7 +331,7 @@ export const HierarchyEditor: React.FC<HierarchyEditorProps> = ({ token, current
               : "Köke kullanıcı ekle"}
           </DialogTitle>
           <DialogBody>
-            <div style={{ minWidth: "320px" }}>
+            <div style={{ minWidth: "320px", minHeight: "360px" }}>
               <UserPicker
                 label="Kullanıcı seçin"
                 token={token}
@@ -364,7 +364,7 @@ export const HierarchyEditor: React.FC<HierarchyEditorProps> = ({ token, current
             {dialog?.type === "move" ? `${dialog.node.displayName} taşı` : ""}
           </DialogTitle>
           <DialogBody>
-            <div style={{ minWidth: "320px", display: "flex", flexDirection: "column", gap: "12px" }}>
+            <div style={{ minWidth: "320px", minHeight: "200px", display: "flex", flexDirection: "column", gap: "12px" }}>
               <MessageBar intent="info">
                 <MessageBarBody>
                   Bu kullanıcının altındaki çalışanlar onunla birlikte taşınır.
