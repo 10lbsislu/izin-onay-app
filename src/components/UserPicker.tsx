@@ -5,6 +5,7 @@
  */
 
 import React, { useState, useCallback, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import {
   Field,
   Input,
@@ -23,11 +24,8 @@ const useStyles = makeStyles({
     position: "relative",
   },
   dropdown: {
-    position: "absolute",
-    top: "calc(100% + 4px)",
-    left: 0,
-    right: 0,
-    zIndex: 1000,
+    position: "fixed",
+    zIndex: 10000,
     backgroundColor: tokens.colorNeutralBackground1,
     border: `1px solid ${tokens.colorNeutralStroke1}`,
     borderRadius: tokens.borderRadiusMedium,
@@ -101,11 +99,44 @@ export const UserPicker: React.FC<UserPickerProps> = ({
   const [isOpen, setIsOpen] = useState(false);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number; width: number }>({
+    top: 0,
+    left: 0,
+    width: 0,
+  });
+
+  // Dropdown pozisyonunu container'a göre hesapla
+  const updatePosition = useCallback(() => {
+    if (containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      setDropdownPos({
+        top: rect.bottom + 4,
+        left: rect.left,
+        width: rect.width,
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isOpen) {
+      updatePosition();
+      window.addEventListener("scroll", updatePosition, true);
+      window.addEventListener("resize", updatePosition);
+      return () => {
+        window.removeEventListener("scroll", updatePosition, true);
+        window.removeEventListener("resize", updatePosition);
+      };
+    }
+  }, [isOpen, updatePosition]);
 
   // Dışarıya tıklanınca kapat
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      const inContainer = containerRef.current?.contains(target);
+      const inDropdown = dropdownRef.current?.contains(target);
+      if (!inContainer && !inDropdown) {
         setIsOpen(false);
       }
     };
@@ -186,8 +217,12 @@ export const UserPicker: React.FC<UserPickerProps> = ({
         )}
       </Field>
 
-      {isOpen && results.length > 0 && !value && (
-        <div className={styles.dropdown}>
+      {isOpen && results.length > 0 && !value && createPortal(
+        <div
+          ref={dropdownRef}
+          className={styles.dropdown}
+          style={{ top: dropdownPos.top, left: dropdownPos.left, width: dropdownPos.width }}
+        >
           {results.map((user) => (
             <div
               key={user.id}
@@ -206,15 +241,21 @@ export const UserPicker: React.FC<UserPickerProps> = ({
               </div>
             </div>
           ))}
-        </div>
+        </div>,
+        document.body
       )}
 
-      {isOpen && results.length === 0 && !isLoading && query.length >= 2 && !value && (
-        <div className={styles.dropdown}>
+      {isOpen && results.length === 0 && !isLoading && query.length >= 2 && !value && createPortal(
+        <div
+          ref={dropdownRef}
+          className={styles.dropdown}
+          style={{ top: dropdownPos.top, left: dropdownPos.left, width: dropdownPos.width }}
+        >
           <Text className={styles.noResult} size={200}>
             "{query}" için sonuç bulunamadı
           </Text>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
