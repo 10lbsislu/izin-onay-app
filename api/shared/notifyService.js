@@ -30,10 +30,7 @@ function newRequestCard(request, appUrl) {
         facts: [
           { title: "Çalışan", value: request.requesterName },
           { title: "İzin Türü", value: izinTuruLabel(request.leaveType) },
-          {
-            title: "Tarihler",
-            value: `${formatDate(request.startDate)} — ${formatDate(request.endDate)}`,
-          },
+          { title: "Tarihler", value: formatRequestDateRange(request) },
           { title: "Süre", value: `${request.totalDays} iş günü` },
           ...(request.description
             ? [{ title: "Açıklama", value: request.description }]
@@ -77,10 +74,7 @@ function requestResultCard(request) {
         type: "FactSet",
         facts: [
           { title: "İzin Türü", value: izinTuruLabel(request.leaveType) },
-          {
-            title: "Tarihler",
-            value: `${formatDate(request.startDate)} — ${formatDate(request.endDate)}`,
-          },
+          { title: "Tarihler", value: formatRequestDateRange(request) },
           { title: "Süre", value: `${request.totalDays} iş günü` },
           { title: "İşlem Yapan", value: request.approverName || "—" },
           ...(request.approverComment
@@ -186,8 +180,7 @@ async function notifyUser(userId, request) {
 function izinTuruLabel(type) {
   const labels = {
     yillik: "Yıllık İzin",
-    hastalik: "Hastalık İzni",
-    mazeret: "Mazeret İzni",
+    saatlik: "Saatlik İzin",
     ucretsiz: "Ücretsiz İzin",
     diger: "Diğer",
   };
@@ -199,4 +192,71 @@ function formatDate(dateStr) {
   return new Date(dateStr).toLocaleDateString("tr-TR");
 }
 
-module.exports = { notifyChannel, notifyUser };
+function formatRequestDateRange(request) {
+  if (request.leaveType === "saatlik" && request.startTime && request.endTime) {
+    return `${formatDate(request.startDate)} ${request.startTime}–${request.endTime}`;
+  }
+  if (request.startDate === request.endDate) {
+    return formatDate(request.startDate);
+  }
+  return `${formatDate(request.startDate)} — ${formatDate(request.endDate)}`;
+}
+
+// ─── Onaylayıcıya mail bildirimi ─────────────────────────────────────────────
+
+async function notifyApproverByEmail(request, approverEmail) {
+  if (!approverEmail) {
+    console.warn("notifyApproverByEmail: onaylayıcı maili yok, atlandı.");
+    return;
+  }
+  const client = getAppGraphClient();
+  const appUrl = process.env.FRONTEND_URL || "https://teams.microsoft.com";
+  const subject = `İzin Talebi — ${request.requesterName}`;
+  const dateLine = formatRequestDateRange(request);
+  const sureLine = request.leaveType === "saatlik"
+    ? `${request.totalDays} iş günü karşılığı (saatlik)`
+    : `${request.totalDays} iş günü`;
+
+  const html = `
+    <div style="font-family: Segoe UI, Arial, sans-serif; max-width: 560px;">
+      <h2 style="color:#0078d4; margin-bottom: 8px;">📋 Yeni İzin Talebi</h2>
+      <p><strong>${request.requesterName}</strong> adlı çalışan size bir izin talebi gönderdi.</p>
+      <table style="border-collapse: collapse; margin: 12px 0;">
+        <tr><td style="padding:4px 12px 4px 0;"><b>İzin Türü:</b></td><td>${izinTuruLabel(request.leaveType)}</td></tr>
+        <tr><td style="padding:4px 12px 4px 0;"><b>Tarih:</b></td><td>${dateLine}</td></tr>
+        <tr><td style="padding:4px 12px 4px 0;"><b>Süre:</b></td><td>${sureLine}</td></tr>
+        ${request.description ? `<tr><td style="padding:4px 12px 4px 0;vertical-align:top;"><b>Açıklama:</b></td><td>${request.description}</td></tr>` : ""}
+        <tr><td style="padding:4px 12px 4px 0;"><b>E-posta:</b></td><td>${request.requesterEmail || "—"}</td></tr>
+      </table>
+      <p style="margin-top: 16px;">
+        <a href="${appUrl}" style="background:#0078d4;color:white;padding:10px 20px;border-radius:4px;text-decoration:none;display:inline-block;">
+          🔍 Talebi İncele ve Onayla
+        </a>
+      </p>
+      <p style="color:#888; font-size:12px; margin-top:24px;">
+        Bu e-posta İzin Onay Sistemi tarafından otomatik gönderildi.
+      </p>
+    </div>
+  `;
+
+  // Mail'i talepçinin kutusundan gönder — alıcı kim olduğunu kolayca görsün
+  const senderUserId = request.requesterEmail || request.requesterId;
+
+  try {
+    await client
+      .api(`/users/${senderUserId}/sendMail`)
+      .post({
+        message: {
+          subject,
+          body: { contentType: "HTML", content: html },
+          toRecipients: [{ emailAddress: { address: approverEmail } }],
+        },
+        saveToSentItems: true,
+      });
+    console.log(`Onaylayıcı mail bildirimi gönderildi: ${approverEmail}`);
+  } catch (err) {
+    console.error("Mail bildirimi hatası:", err.message);
+  }
+}
+
+module.exports = { notifyChannel, notifyUser, notifyApproverByEmail };

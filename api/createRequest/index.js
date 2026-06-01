@@ -9,7 +9,7 @@
 const { app } = require("@azure/functions");
 const { v4: uuidv4 } = require("uuid");
 const { addRequest, getHierarchyNode } = require("../shared/excelService");
-const { notifyChannel } = require("../shared/notifyService");
+const { notifyChannel, notifyApproverByEmail } = require("../shared/notifyService");
 const { extractCaller } = require("../shared/authMiddleware");
 
 app.http("createRequest", {
@@ -60,12 +60,14 @@ app.http("createRequest", {
 
       let approverId = "";
       let approverName = "";
+      let approverEmail = "";
 
       if (callerNode && callerNode.managerId) {
         // Normal kullanıcı: amir otomatik
         approverId = callerNode.managerId;
         const managerNode = await getHierarchyNode(approverId);
         approverName = managerNode ? managerNode.displayName : "";
+        approverEmail = managerNode ? managerNode.mail : "";
       } else if (callerIsTreeAdmin) {
         // Root/tree admin: payload'dan approverId al
         if (!body.approverId) {
@@ -94,6 +96,7 @@ app.http("createRequest", {
         }
         approverId = targetNode.id;
         approverName = targetNode.displayName;
+        approverEmail = targetNode.mail;
       } else {
         return {
           status: 400,
@@ -129,6 +132,11 @@ app.http("createRequest", {
       // Kanala Adaptive Card bildirimi (hata ana akışı durdurmaz)
       notifyChannel(newRequest).catch((e) =>
         context.log.warn("Kanal bildirimi başarısız:", e.message)
+      );
+
+      // Onaylayıcıya e-posta bildirimi
+      notifyApproverByEmail(newRequest, approverEmail).catch((e) =>
+        context.log.warn("Mail bildirimi başarısız:", e.message)
       );
 
       return {
