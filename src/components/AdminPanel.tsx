@@ -8,26 +8,23 @@ import React, { useEffect, useState, useCallback } from "react";
 import {
   TabList, Tab, Text, Spinner, Button, Card, Badge, Avatar,
   Dialog, DialogTrigger, DialogSurface, DialogTitle, DialogBody,
-  DialogActions, Field, Textarea, Select, MessageBar, MessageBarBody,
+  DialogActions, Field, Textarea, Select,
   Table, TableHeader, TableRow, TableHeaderCell, TableBody, TableCell,
-  Toolbar, ToolbarButton, makeStyles, tokens, Divider,
+  Toolbar, ToolbarButton, makeStyles, tokens,
   Toast, ToastTitle, ToastBody, useToastController, useId, Toaster,
 } from "@fluentui/react-components";
 import {
-  CheckmarkCircleRegular, DismissCircleRegular, PersonAddRegular,
-  DeleteRegular, ArrowClockwiseRegular, PeopleRegular,
+  CheckmarkCircleRegular, DismissCircleRegular,
+  ArrowClockwiseRegular, PeopleRegular,
   ClipboardTaskListLtrRegular, LockClosedRegular,
 } from "@fluentui/react-icons";
-import type { Approver, OrgUser, LeaveStatus } from "../types";
+import type { OrgUser, LeaveStatus } from "../types";
 import type { EnrichedLeaveRequest, GetRequestsResponse } from "../services/requestService";
 import { LEAVE_TYPE_LABELS } from "../types";
-import {
-  getRequests, updateRequestStatus, getApprovers,
-  addApprover, removeApprover,
-} from "../services/requestService";
+import { getRequests, updateRequestStatus } from "../services/requestService";
 import { StatusBadge } from "./StatusBadge";
 import { VisibilityBadge } from "./VisibilityBadge";
-import { UserPicker } from "./UserPicker";
+import { HierarchyEditor } from "./HierarchyEditor";
 
 const useStyles = makeStyles({
   panel: { display: "flex", flexDirection: "column", gap: "16px" },
@@ -40,7 +37,6 @@ const useStyles = makeStyles({
   cardBody: { display: "flex", flexDirection: "column", gap: "8px", padding: "4px 0" },
   metaRow: { display: "flex", flexWrap: "wrap", gap: "10px", alignItems: "center" },
   actions: { display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "4px" },
-  approverRow: { display: "flex", alignItems: "center", gap: "12px", padding: "10px 0" },
   filterBar: { display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" },
   emptyState: {
     display: "flex", flexDirection: "column", alignItems: "center",
@@ -56,21 +52,23 @@ const useStyles = makeStyles({
   },
 });
 
-type AdminTab = "pending" | "all" | "approvers";
+type AdminTab = "pending" | "all" | "hierarchy";
 
 interface AdminPanelProps {
   currentUser: OrgUser;
   token: string;
+  isTreeAdmin: boolean;
+  hasDirectReports: boolean;
 }
 
-export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser, token }) => {
+export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser, token, isTreeAdmin, hasDirectReports }) => {
   const styles = useStyles();
   const toasterId = useId("toaster");
   const { dispatchToast } = useToastController(toasterId);
 
-  const [activeTab, setActiveTab] = useState<AdminTab>("pending");
+  const defaultTab: AdminTab = hasDirectReports ? "pending" : (isTreeAdmin ? "hierarchy" : "all");
+  const [activeTab, setActiveTab] = useState<AdminTab>(defaultTab);
   const [requests, setRequests] = useState<EnrichedLeaveRequest[]>([]);
-  const [approvers, setApprovers] = useState<Approver[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState<LeaveStatus | "hepsi">("hepsi");
 
@@ -78,17 +76,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser, token }) =>
   const [dialogAction, setDialogAction] = useState<"approve" | "reject" | null>(null);
   const [approverComment, setApproverComment] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
-  const [newApprover, setNewApprover] = useState<OrgUser | null>(null);
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [res, appr]: [GetRequestsResponse, Approver[]] = await Promise.all([
-        getRequests(token),
-        getApprovers(token),
-      ]);
+      const res: GetRequestsResponse = await getRequests(token);
       setRequests(res.requests.sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
-      setApprovers(appr);
     } catch (err) {
       dispatchToast(
         <Toast><ToastTitle>Yükleme Hatası</ToastTitle><ToastBody>{String(err)}</ToastBody></Toast>,
@@ -136,47 +129,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser, token }) =>
       );
     } finally {
       setIsProcessing(false);
-    }
-  };
-
-  // ── Onaylayıcı Ekle / Kaldır ─────────────────────────────────────────────
-  const handleAddApprover = async () => {
-    if (!newApprover) return;
-    try {
-      await addApprover(token, newApprover);
-      setNewApprover(null);
-      loadData();
-      dispatchToast(
-        <Toast>
-          <ToastTitle>Onaylayıcı Eklendi</ToastTitle>
-          <ToastBody>{newApprover.displayName} onaylayıcı olarak eklendi.</ToastBody>
-        </Toast>,
-        { intent: "success" }
-      );
-    } catch (err) {
-      dispatchToast(
-        <Toast><ToastTitle>Hata</ToastTitle><ToastBody>{String(err)}</ToastBody></Toast>,
-        { intent: "error" }
-      );
-    }
-  };
-
-  const handleRemoveApprover = async (appr: Approver) => {
-    try {
-      await removeApprover(token, appr.id);
-      loadData();
-      dispatchToast(
-        <Toast>
-          <ToastTitle>Onaylayıcı Kaldırıldı</ToastTitle>
-          <ToastBody>{appr.displayName} listeden çıkarıldı.</ToastBody>
-        </Toast>,
-        { intent: "warning" }
-      );
-    } catch (err) {
-      dispatchToast(
-        <Toast><ToastTitle>Hata</ToastTitle><ToastBody>{String(err)}</ToastBody></Toast>,
-        { intent: "error" }
-      );
     }
   };
 
@@ -335,27 +287,30 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser, token }) =>
           selectedValue={activeTab}
           onTabSelect={(_, d) => setActiveTab(d.value as AdminTab)}
         >
-          <Tab value="pending" icon={<ClipboardTaskListLtrRegular />}>
-            Bekleyen Talepler
-            {pendingRequests.length > 0 && (
-              <Badge appearance="filled" color="danger" size="small" style={{ marginLeft: "6px" }}>
-                {pendingRequests.length}
-              </Badge>
-            )}
-          </Tab>
+          {hasDirectReports && (
+            <Tab value="pending" icon={<ClipboardTaskListLtrRegular />}>
+              Bekleyen Talepler
+              {pendingRequests.length > 0 && (
+                <Badge appearance="filled" color="danger" size="small" style={{ marginLeft: "6px" }}>
+                  {pendingRequests.length}
+                </Badge>
+              )}
+            </Tab>
+          )}
           <Tab value="all">Tüm Talepler</Tab>
-          <Tab value="approvers" icon={<PeopleRegular />}>Onaylayıcı Yönetimi</Tab>
+          {isTreeAdmin && (
+            <Tab value="hierarchy" icon={<PeopleRegular />}>Hiyerarşi Yönetimi</Tab>
+          )}
         </TabList>
 
         {/* ── Bekleyen Talepler ─── */}
-        {activeTab === "pending" && (
+        {activeTab === "pending" && hasDirectReports && (
           <div>
             {/* Görünürlük notu */}
             <div className={styles.visibilityNote}>
               <LockClosedRegular fontSize={13} />
               <Text size={100}>
-                Beklemedeki talepler yalnızca talepçi ve onaylayıcılar tarafından görülebilir.
-                Onaylandıktan sonra çalışan kendi talebini görebilir.
+                Sadece doğrudan astlarınızın talepleri burada görünür. Onaylandıktan sonra çalışan kendi talebini görebilir.
               </Text>
             </div>
             <Toolbar>
@@ -444,50 +399,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser, token }) =>
           </div>
         )}
 
-        {/* ── Onaylayıcı Yönetimi ─── */}
-        {activeTab === "approvers" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-            <Card>
-              <Text weight="semibold" size={400}>Yeni Onaylayıcı Ekle</Text>
-              <Text size={200} style={{ color: "var(--colorNeutralForeground3)" }}>
-                Kuruluşunuzdan kullanıcı arayarak onaylayıcı ekleyebilirsiniz.
-              </Text>
-              <div style={{ display: "flex", gap: "12px", alignItems: "flex-end", flexWrap: "wrap" }}>
-                <div style={{ flex: 1, minWidth: "240px" }}>
-                  <UserPicker
-                    label="Kullanıcı Ara"
-                    token={token}
-                    value={newApprover}
-                    onChange={setNewApprover}
-                    exclude={approvers.map((a) => a.id)}
-                  />
-                </div>
-                <Button appearance="primary" icon={<PersonAddRegular />} onClick={handleAddApprover} disabled={!newApprover}>
-                  Ekle
-                </Button>
-              </div>
-            </Card>
-
-            <Divider>Mevcut Onaylayıcılar ({approvers.length})</Divider>
-
-            {approvers.length === 0 ? (
-              <MessageBar intent="warning">
-                <MessageBarBody>Henüz onaylayıcı eklenmemiş.</MessageBarBody>
-              </MessageBar>
-            ) : (
-              approvers.map((appr) => (
-                <div key={appr.id} className={styles.approverRow}>
-                  <Avatar name={appr.displayName} size={40} color="colorful" />
-                  <div style={{ flex: 1 }}>
-                    <Text weight="semibold" size={300}>{appr.displayName}</Text>
-                    <br />
-                    <Text size={200} style={{ color: "var(--colorNeutralForeground3)" }}>{appr.mail}</Text>
-                  </div>
-                  <Button appearance="subtle" icon={<DeleteRegular />} onClick={() => handleRemoveApprover(appr)} />
-                </div>
-              ))
-            )}
-          </div>
+        {/* ── Hiyerarşi Yönetimi ─── */}
+        {activeTab === "hierarchy" && isTreeAdmin && (
+          <HierarchyEditor token={token} currentUserId={currentUser.id} />
         )}
       </div>
     </>

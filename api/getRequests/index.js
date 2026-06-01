@@ -2,25 +2,20 @@
  * getRequests/index.js
  * GET /api/getRequests
  *
- * Görünürlük kuralları (sunucu tarafında zorunlu):
- *  - beklemede  → sadece talepçi + onaylayıcılar
- *  - onaylandi / reddedildi → talepçi kendi talebini, onaylayıcı hepsini görür
- *
- * Client'tan userId parametresi artık güvenlik için kullanılmıyor;
- * kimlik, JWT token'dan server-side çıkarılıyor.
+ * Hiyerarşik görünürlük:
+ *  - Kullanıcı kendi taleplerini her zaman görür
+ *  - Bir kullanıcı YALNIZCA doğrudan astlarının taleplerini görür
+ *  - Zincirde yukarı yayılma YOK
  */
 
 const { app } = require("@azure/functions");
-const { getAllRequests } = require("../shared/excelService");
-const { getAllApprovers } = require("../shared/excelService");
+const { getAllRequests, getDirectReports } = require("../shared/excelService");
 const { extractCaller, applyVisibilityRules } = require("../shared/authMiddleware");
 
 app.http("getRequests", {
   methods: ["GET", "OPTIONS"],
   authLevel: "anonymous",
   handler: async (request, context) => {
-    context.log("getRequests çağrıldı");
-
     const headers = {
       "Content-Type": "application/json",
       "Access-Control-Allow-Origin": process.env.FRONTEND_URL || "*",
@@ -32,7 +27,6 @@ app.http("getRequests", {
       return { status: 204, headers };
     }
 
-    // ── 1. Kimliği token'dan çıkar ────────────────────────────────────────
     const caller = await extractCaller(request);
     if (!caller) {
       return {
@@ -43,21 +37,19 @@ app.http("getRequests", {
     }
 
     try {
-      // ── 2. Tüm talepleri ve onaylayıcı listesini paralel çek ──────────
-      const [allRequests, approvers] = await Promise.all([
+      const [allRequests, directReports] = await Promise.all([
         getAllRequests(),
-        getAllApprovers(),
+        getDirectReports(caller.userId),
       ]);
 
-      const isApprover = approvers.some((a) => a.id === caller.userId);
+      const directReportIds = new Set(directReports.map((n) => n.id));
+      const isApprover = directReportIds.size > 0;
 
-      // ── 3. Görünürlük filtresi uygula ─────────────────────────────────
-      const visible = applyVisibilityRules(allRequests, caller.userId, isApprover);
+      const visible = applyVisibilityRules(allRequests, caller.userId, directReportIds);
 
-      // ── 4. Meta bilgi ekle (frontend'de UI ipuçları için) ─────────────
       const enriched = visible.map((req) => ({
         ...req,
-        _visibility: getVisibilityMeta(req, caller.userId, isApprover),
+        _visibility: getVisibilityMeta(req, caller.userId),
       }));
 
       return {
@@ -83,27 +75,23 @@ app.http("getRequests", {
   },
 });
 
-/**
- * Her talep için frontend'in göstereceği görünürlük metası
- */
-function getVisibilityMeta(req, callerId, isApprover) {
+function getVisibilityMeta(req, callerId) {
   const isOwner = req.requesterId === callerId;
 
   if (req.status === "beklemede") {
     if (isOwner) {
       return {
         badge: "only_you_and_approvers",
-        label: "Yalnızca siz ve onaylayıcılar görebilir",
+        label: "Yalnızca siz ve amiriniz görebilir",
         icon: "lock",
       };
     }
-    if (isApprover) {
-      return {
-        badge: "approver_only",
-        label: "Onaylayıcılara özel",
-        icon: "lock",
-      };
-    }
+    // Bu noktada caller bu talebi görüyorsa caller, talepçinin amiridir
+    return {
+      badge: "approver_only",
+      label: "Sadece amir olarak siz görüyorsunuz",
+      icon: "lock",
+    };
   }
 
   return { badge: "normal", label: null, icon: null };

@@ -29,7 +29,7 @@ import { MsalProvider, useMsal, useIsAuthenticated } from "@azure/msal-react";
 import { PublicClientApplication } from "@azure/msal-browser";
 import { msalConfig, loginRequest } from "./auth/authConfig";
 import { useTeamsContext } from "./hooks/useTeamsContext";
-import { getApprovers } from "./services/requestService";
+import { getHierarchy } from "./services/requestService";
 import { RequestForm } from "./components/RequestForm";
 import { MyRequests } from "./components/MyRequests";
 import { AdminPanel } from "./components/AdminPanel";
@@ -100,6 +100,9 @@ function AppContent() {
   const [token, setToken] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<OrgUser | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isTreeAdmin, setIsTreeAdmin] = useState(false);
+  const [hasDirectReports, setHasDirectReports] = useState(false);
+  const [isRoot, setIsRoot] = useState(false);
   const [activeTab, setActiveTab] = useState<AppTab>("yeni-talep");
   const [refreshKey, setRefreshKey] = useState(0);
   const [isInitializing, setIsInitializing] = useState(true);
@@ -164,9 +167,20 @@ function AppContent() {
         setCurrentUser(user);
 
         try {
-          const approvers = await getApprovers(accessToken);
-          setIsAdmin(approvers.some((a) => a.id === me.id));
+          const hierarchy = await getHierarchy(accessToken);
+          const myNode = hierarchy.find((n) => n.id === me.id);
+          const directReports = hierarchy.filter((n) => n.managerId === me.id);
+          const treeAdmin = !!myNode?.isTreeAdmin;
+          const hasReports = directReports.length > 0;
+          const root = !!myNode && !myNode.managerId;
+          setIsTreeAdmin(treeAdmin);
+          setHasDirectReports(hasReports);
+          setIsRoot(root);
+          setIsAdmin(treeAdmin || hasReports);
         } catch {
+          setIsTreeAdmin(false);
+          setHasDirectReports(false);
+          setIsRoot(false);
           setIsAdmin(false);
         }
       } catch (err) {
@@ -276,6 +290,7 @@ function AppContent() {
           <RequestForm
             currentUser={currentUser}
             token={token}
+            isRoot={isRoot}
             onSuccess={() => {
               setRefreshKey((k) => k + 1);
               setActiveTab("taleplerim");
@@ -290,7 +305,12 @@ function AppContent() {
           />
         )}
         {activeTab === "yonetici" && isAdmin && token && (
-          <AdminPanel currentUser={currentUser} token={token} />
+          <AdminPanel
+            currentUser={currentUser}
+            token={token}
+            isTreeAdmin={isTreeAdmin}
+            hasDirectReports={hasDirectReports}
+          />
         )}
       </div>
     </div>

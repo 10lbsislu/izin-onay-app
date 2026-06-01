@@ -4,7 +4,7 @@
  * Tüm isteklere Teams SSO Bearer token eklenir.
  */
 
-import type { LeaveRequest, Approver, OrgUser } from "../types";
+import type { LeaveRequest, Approver, OrgUser, HierarchyNode, TreeNode } from "../types";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "/api";
 
@@ -59,7 +59,7 @@ export async function getRequests(token: string): Promise<GetRequestsResponse> {
 
 export async function createRequest(
   token: string,
-  payload: Omit<LeaveRequest, "id" | "status" | "createdAt" | "updatedAt">
+  payload: Omit<LeaveRequest, "id" | "status" | "createdAt" | "updatedAt"> & { approverId?: string }
 ): Promise<LeaveRequest> {
   const res = await apiFetch<{ request: LeaveRequest }>(
     "/createRequest",
@@ -87,8 +87,102 @@ export async function updateRequestStatus(
   return res.request;
 }
 
-// ─── Onaylayıcılar ────────────────────────────────────────────────────────────
+// ─── Hiyerarşi ────────────────────────────────────────────────────────────────
 
+export async function getHierarchy(token: string): Promise<HierarchyNode[]> {
+  const res = await apiFetch<{ nodes: HierarchyNode[] }>(
+    "/manageApprovers",
+    { method: "POST", body: JSON.stringify({ action: "get-tree" }) },
+    token
+  );
+  return res.nodes;
+}
+
+export async function setUserManager(
+  token: string,
+  user: OrgUser,
+  managerId: string
+): Promise<HierarchyNode> {
+  const res = await apiFetch<{ node: HierarchyNode }>(
+    "/manageApprovers",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        action: "set-manager",
+        userId: user.id,
+        managerId,
+        displayName: user.displayName,
+        mail: user.mail,
+      }),
+    },
+    token
+  );
+  return res.node;
+}
+
+export async function removeHierarchyNode(token: string, userId: string): Promise<void> {
+  await apiFetch(
+    "/manageApprovers",
+    { method: "POST", body: JSON.stringify({ action: "remove", userId }) },
+    token
+  );
+}
+
+export async function grantTreeAdmin(token: string, userId: string): Promise<HierarchyNode> {
+  const res = await apiFetch<{ node: HierarchyNode }>(
+    "/manageApprovers",
+    { method: "POST", body: JSON.stringify({ action: "grant-admin", userId }) },
+    token
+  );
+  return res.node;
+}
+
+export async function revokeTreeAdmin(token: string, userId: string): Promise<HierarchyNode> {
+  const res = await apiFetch<{ node: HierarchyNode }>(
+    "/manageApprovers",
+    { method: "POST", body: JSON.stringify({ action: "revoke-admin", userId }) },
+    token
+  );
+  return res.node;
+}
+
+// Tree builder helper
+export function buildTree(nodes: HierarchyNode[]): TreeNode[] {
+  const byId = new Map<string, TreeNode>();
+  nodes.forEach((n) => byId.set(n.id, { ...n, children: [] }));
+  const roots: TreeNode[] = [];
+  byId.forEach((node) => {
+    if (node.managerId && byId.has(node.managerId)) {
+      byId.get(node.managerId)!.children.push(node);
+    } else {
+      roots.push(node);
+    }
+  });
+  // İsme göre sırala (her seviyede)
+  const sortRec = (arr: TreeNode[]) => {
+    arr.sort((a, b) => a.displayName.localeCompare(b.displayName, "tr"));
+    arr.forEach((n) => sortRec(n.children));
+  };
+  sortRec(roots);
+  return roots;
+}
+
+// Bir node'un altındaki tüm id'ler (cycle prevention için)
+export function getDescendantIds(nodes: HierarchyNode[], rootId: string): Set<string> {
+  const descendants = new Set<string>();
+  const recurse = (id: string) => {
+    nodes.filter((n) => n.managerId === id).forEach((child) => {
+      if (!descendants.has(child.id)) {
+        descendants.add(child.id);
+        recurse(child.id);
+      }
+    });
+  };
+  recurse(rootId);
+  return descendants;
+}
+
+// Eski API uyumluluğu — yeni kod kullanmamalı
 export async function getApprovers(token: string): Promise<Approver[]> {
   const res = await apiFetch<{ approvers: Approver[] }>(
     "/getApprovers",
@@ -96,31 +190,6 @@ export async function getApprovers(token: string): Promise<Approver[]> {
     token
   );
   return res.approvers;
-}
-
-export async function addApprover(token: string, user: OrgUser): Promise<Approver> {
-  const res = await apiFetch<{ approver: Approver }>(
-    "/manageApprovers",
-    {
-      method: "POST",
-      body: JSON.stringify({
-        action: "add",
-        userId: user.id,
-        displayName: user.displayName,
-        mail: user.mail,
-      }),
-    },
-    token
-  );
-  return res.approver;
-}
-
-export async function removeApprover(token: string, approverId: string): Promise<void> {
-  await apiFetch(
-    "/manageApprovers",
-    { method: "POST", body: JSON.stringify({ action: "remove", userId: approverId }) },
-    token
-  );
 }
 
 // ─── Kullanıcı Arama ─────────────────────────────────────────────────────────

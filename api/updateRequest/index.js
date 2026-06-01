@@ -8,7 +8,7 @@
  */
 
 const { app } = require("@azure/functions");
-const { updateRequest: updateInExcel, getAllApprovers } = require("../shared/excelService");
+const { updateRequest: updateInExcel, getAllRequests } = require("../shared/excelService");
 const { notifyUser } = require("../shared/notifyService");
 const { extractCaller } = require("../shared/authMiddleware");
 
@@ -59,23 +59,7 @@ app.http("updateRequest", {
         };
       }
 
-      // ── Onaylayıcı yetkisi kontrolü ───────────────────────────────────
-      const approvers = await getAllApprovers();
-      const isApprover = approvers.some((a) => a.id === caller.userId);
-
-      if (!isApprover) {
-        return {
-          status: 403,
-          headers,
-          body: JSON.stringify({
-            error: "Bu işlem için onaylayıcı yetkisi gerekiyor.",
-          }),
-        };
-      }
-
-      // ── Kendi talebini onaylayamaz ─────────────────────────────────────
-      // (requesterId talebin sahibi — excel'den kontrol edelim)
-      const { getAllRequests } = require("../shared/excelService");
+      // ── Talebi bul ────────────────────────────────────────────────────
       const allRequests = await getAllRequests();
       const targetRequest = allRequests.find((r) => r.id === id);
 
@@ -87,6 +71,18 @@ app.http("updateRequest", {
         };
       }
 
+      // ── Hiyerarşik yetki: sadece atanmış amir onaylayabilir ───────────
+      if (targetRequest.approverId !== caller.userId) {
+        return {
+          status: 403,
+          headers,
+          body: JSON.stringify({
+            error: "Bu talebi yalnızca atanmış amir onaylayabilir.",
+          }),
+        };
+      }
+
+      // ── Defansif: kendi talebini onaylayamaz ──────────────────────────
       if (targetRequest.requesterId === caller.userId) {
         return {
           status: 403,
@@ -107,12 +103,10 @@ app.http("updateRequest", {
         };
       }
 
-      // ── Excel güncelle ────────────────────────────────────────────────
+      // ── Excel güncelle (approverId/Name createRequest'te yazıldı, değişmez) ──
       const updatedRequest = await updateInExcel(id, {
         status,
         approverComment: approverComment || "",
-        approverId:      caller.userId,
-        approverName:    caller.name || "",
         updatedAt:       new Date().toISOString(),
       });
 

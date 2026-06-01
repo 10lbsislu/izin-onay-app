@@ -17,7 +17,12 @@ app.http("getApprovers", {
     };
 
     try {
-      const approvers = await getAllApprovers();
+      const nodes = await getAllApprovers();
+      const approvers = nodes.map((n) => ({
+        ...n,
+        isTreeAdmin: String(n.isTreeAdmin).toLowerCase() === "true",
+        managerId: n.managerId || "",
+      }));
       return {
         status: 200,
         headers,

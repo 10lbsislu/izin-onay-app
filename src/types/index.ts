@@ -8,13 +8,22 @@ export interface OrgUser {
   userPrincipalName?: string;
 }
 
-// ─── Onaylayıcı ───────────────────────────────────────────────────────────────
-export interface Approver {
+// ─── Hiyerarşi Düğümü ─────────────────────────────────────────────────────────
+export interface HierarchyNode {
   id: string;
   displayName: string;
   mail: string;
+  managerId: string;     // "" = root
+  isTreeAdmin: boolean;
   addedAt: string;
 }
+
+export interface TreeNode extends HierarchyNode {
+  children: TreeNode[];
+}
+
+// Geriye uyum için alias
+export type Approver = HierarchyNode;
 
 // ─── İzin Talebi ─────────────────────────────────────────────────────────────
 export type LeaveType =
@@ -57,6 +66,9 @@ export type AppView = "employee" | "admin";
 export interface AppContextType {
   currentUser: OrgUser | null;
   isAdmin: boolean;
+  isTreeAdmin: boolean;
+  hasDirectReports: boolean;
+  isRoot: boolean;
   teamsToken: string | null;
 }
 

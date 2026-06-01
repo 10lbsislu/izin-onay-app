@@ -3,7 +3,7 @@
  * Çalışanın izin talebi oluşturduğu form bileşeni.
  */
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Button,
   Field,
@@ -23,10 +23,12 @@ import {
   CardHeader,
   Divider,
   Badge,
+  MessageBar,
+  MessageBarBody,
 } from "@fluentui/react-components";
 import { CalendarLtrRegular, SendRegular } from "@fluentui/react-icons";
-import type { OrgUser, LeaveType } from "../types";
-import { createRequest } from "../services/requestService";
+import type { OrgUser, LeaveType, HierarchyNode } from "../types";
+import { createRequest, getHierarchy } from "../services/requestService";
 import { LEAVE_TYPE_LABELS } from "../types";
 
 const useStyles = makeStyles({
@@ -62,12 +64,14 @@ const useStyles = makeStyles({
 interface RequestFormProps {
   currentUser: OrgUser;
   token: string;
+  isRoot: boolean;
   onSuccess: () => void;
 }
 
 export const RequestForm: React.FC<RequestFormProps> = ({
   currentUser,
   token,
+  isRoot,
   onSuccess,
 }) => {
   const styles = useStyles();
@@ -79,6 +83,19 @@ export const RequestForm: React.FC<RequestFormProps> = ({
   const [endDate, setEndDate] = useState("");
   const [description, setDescription] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [approverChoices, setApproverChoices] = useState<HierarchyNode[]>([]);
+  const [pickedApproverId, setPickedApproverId] = useState("");
+
+  // Root kullanıcı: hiyerarşiden olası onaylayıcıları yükle
+  useEffect(() => {
+    if (!isRoot) return;
+    getHierarchy(token)
+      .then((nodes) => {
+        const choices = nodes.filter((n) => n.id !== currentUser.id);
+        setApproverChoices(choices);
+      })
+      .catch(() => setApproverChoices([]));
+  }, [isRoot, token, currentUser.id]);
 
   const calcDays = (): number => {
     if (!startDate || !endDate) return 0;
@@ -129,6 +146,16 @@ export const RequestForm: React.FC<RequestFormProps> = ({
       );
       return;
     }
+    if (isRoot && !pickedApproverId) {
+      dispatchToast(
+        <Toast>
+          <ToastTitle>Onaylayıcı Seçilmedi</ToastTitle>
+          <ToastBody>Talebinizi onaylayacak kişiyi seçin.</ToastBody>
+        </Toast>,
+        { intent: "error" }
+      );
+      return;
+    }
 
     setIsSubmitting(true);
     try {
@@ -141,6 +168,7 @@ export const RequestForm: React.FC<RequestFormProps> = ({
         endDate,
         totalDays,
         description,
+        ...(isRoot ? { approverId: pickedApproverId } : {}),
       });
 
       dispatchToast(
@@ -156,6 +184,7 @@ export const RequestForm: React.FC<RequestFormProps> = ({
       setStartDate("");
       setEndDate("");
       setDescription("");
+      setPickedApproverId("");
       onSuccess();
     } catch (err) {
       dispatchToast(
@@ -251,6 +280,32 @@ export const RequestForm: React.FC<RequestFormProps> = ({
               rows={3}
             />
           </Field>
+
+          {/* Root kullanıcı için onaylayıcı seçimi */}
+          {isRoot && (
+            approverChoices.length === 0 ? (
+              <MessageBar intent="warning">
+                <MessageBarBody>
+                  Hiyerarşide başka kullanıcı yok. Önce hiyerarşiye birini ekleyin, sonra talep açabilirsiniz.
+                </MessageBarBody>
+              </MessageBar>
+            ) : (
+              <Field label="Onaylayıcı" required hint="Hiyerarşinin tepesindesiniz; talebinizi onaylayacak kişiyi seçin.">
+                <Select
+                  value={pickedApproverId}
+                  onChange={(_, d) => setPickedApproverId(d.value)}
+                >
+                  <option value="">— Seçiniz —</option>
+                  {approverChoices.map((n) => (
+                    <option key={n.id} value={n.id}>
+                      {n.displayName}
+                      {n.isTreeAdmin ? " (admin)" : ""}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            )
+          )}
 
           <Button
             appearance="primary"

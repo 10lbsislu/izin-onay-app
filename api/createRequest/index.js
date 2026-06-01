@@ -8,7 +8,7 @@
 
 const { app } = require("@azure/functions");
 const { v4: uuidv4 } = require("uuid");
-const { addRequest } = require("../shared/excelService");
+const { addRequest, getHierarchyNode } = require("../shared/excelService");
 const { notifyChannel } = require("../shared/notifyService");
 const { extractCaller } = require("../shared/authMiddleware");
 
@@ -53,6 +53,57 @@ app.http("createRequest", {
         };
       }
 
+      // Hiyerarşi: kullanıcının amirini bul, talebi ona ata
+      const callerNode = await getHierarchyNode(caller.userId);
+      const callerIsTreeAdmin = callerNode &&
+        String(callerNode.isTreeAdmin).toLowerCase() === "true";
+
+      let approverId = "";
+      let approverName = "";
+
+      if (callerNode && callerNode.managerId) {
+        // Normal kullanıcı: amir otomatik
+        approverId = callerNode.managerId;
+        const managerNode = await getHierarchyNode(approverId);
+        approverName = managerNode ? managerNode.displayName : "";
+      } else if (callerIsTreeAdmin) {
+        // Root/tree admin: payload'dan approverId al
+        if (!body.approverId) {
+          return {
+            status: 400,
+            headers,
+            body: JSON.stringify({
+              error: "Onaylayıcı seçmelisiniz (kendiniz hiyerarşinin tepesindesiniz).",
+            }),
+          };
+        }
+        const targetNode = await getHierarchyNode(body.approverId);
+        if (!targetNode) {
+          return {
+            status: 400,
+            headers,
+            body: JSON.stringify({ error: "Geçersiz onaylayıcı seçimi." }),
+          };
+        }
+        if (targetNode.id === caller.userId) {
+          return {
+            status: 400,
+            headers,
+            body: JSON.stringify({ error: "Kendinizi onaylayıcı seçemezsiniz." }),
+          };
+        }
+        approverId = targetNode.id;
+        approverName = targetNode.displayName;
+      } else {
+        return {
+          status: 400,
+          headers,
+          body: JSON.stringify({
+            error: "Hiyerarşide tanımlı değilsiniz. Yöneticinizle iletişime geçin.",
+          }),
+        };
+      }
+
       const newRequest = {
         id: uuidv4(),
         requesterId:    caller.userId,
@@ -64,8 +115,8 @@ app.http("createRequest", {
         totalDays:      Number(body.totalDays),
         description:    body.description || "",
         status:         "beklemede",
-        approverId:     "",
-        approverName:   "",
+        approverId,
+        approverName,
         approverComment: "",
         createdAt:      new Date().toISOString(),
         updatedAt:      "",

@@ -3,13 +3,8 @@
  * SharePoint Excel dosyasına Graph Workbook API ile erişim.
  *
  * Excel yapısı:
- *   Sheet "Talepler"    → Tablo: TaleplerTablosu
- *   Sheet "Onaylayıcılar" → Tablo: OnaylayicilarTablosu
- *
- * Kurulum notları:
- *   - SharePoint'te bir Excel dosyası oluşturun
- *   - Her iki sayfada da adlandırılmış tablo oluşturun
- *   - Dosya ID'sini env değişkenine yazın
+ *   Sheet "Talepler"      → Tablo: TaleplerTablosu
+ *   Sheet "Onaylayicilar" → Tablo: OnaylayicilarTablosu (hiyerarşi düğümleri)
  */
 
 const { getAppGraphClient } = require("./graphClient");
@@ -17,11 +12,9 @@ const { getAppGraphClient } = require("./graphClient");
 const SITE_ID = process.env.SHAREPOINT_SITE_ID;
 const FILE_ID = process.env.EXCEL_FILE_ID;
 
-// ─── Workbook URL yardımcısı ─────────────────────────────────────────────────
 const workbookBase = () =>
   `/sites/${SITE_ID}/drive/items/${FILE_ID}/workbook`;
 
-// ─── Sütun eşlemeleri ────────────────────────────────────────────────────────
 const REQUEST_COLS = [
   "id", "requesterId", "requesterName", "requesterEmail",
   "leaveType", "startDate", "endDate", "totalDays",
@@ -29,14 +22,13 @@ const REQUEST_COLS = [
   "approverComment", "createdAt", "updatedAt",
 ];
 
-const APPROVER_COLS = ["id", "displayName", "mail", "addedAt"];
+const APPROVER_COLS = ["id", "displayName", "mail", "managerId", "isTreeAdmin", "addedAt"];
 
 function excelDateToISO(value) {
   if (!value) return "";
   if (typeof value === "string" && value.includes("-")) return value;
   const num = Number(value);
   if (isNaN(num)) return value;
-  // Excel epoch: 1 Ocak 1900 = 1, ancak Excel 1900'ü yanlış leap year sayar
   const date = new Date((num - 25569) * 86400 * 1000);
   return date.toISOString().split("T")[0];
 }
@@ -69,7 +61,6 @@ function rowToApprover(row) {
 
 // ─── İzin Talepleri ──────────────────────────────────────────────────────────
 
-/** Tüm talepleri getir */
 async function getAllRequests() {
   const client = getAppGraphClient();
   try {
@@ -83,13 +74,11 @@ async function getAllRequests() {
   }
 }
 
-/** Belirli kullanıcının taleplerini getir */
 async function getRequestsByUser(userId) {
   const all = await getAllRequests();
   return all.filter((r) => r.requesterId === userId);
 }
 
-/** Yeni talep satırı ekle */
 async function addRequest(request) {
   const client = getAppGraphClient();
   await client
@@ -98,11 +87,9 @@ async function addRequest(request) {
   return request;
 }
 
-/** Mevcut talebi güncelle (satır bul → patch) */
 async function updateRequest(requestId, updates) {
   const client = getAppGraphClient();
 
-  // Tüm satırları getir, ID'ye göre bul
   const res = await client
     .api(`${workbookBase()}/tables/TaleplerTablosu/rows`)
     .get();
@@ -112,7 +99,6 @@ async function updateRequest(requestId, updates) {
 
   if (rowIndex === -1) throw new Error(`Talep bulunamadı: ${requestId}`);
 
-  // Mevcut veriyi güncelle
   const current = rowToRequest(rows[rowIndex].values[0]);
   const updated = { ...current, ...updates };
 
@@ -123,16 +109,13 @@ async function updateRequest(requestId, updates) {
   return updated;
 }
 
-// ─── Onaylayıcılar ────────────────────────────────────────────────────────────
+// ─── Hiyerarşi (eski "Onaylayicilar" tablosu, yeni semantik) ─────────────────
 
-/** Onaylayıcı listesini getir */
 async function getAllApprovers() {
   const client = getAppGraphClient();
   try {
-    const SITE_ID = process.env.SHAREPOINT_SITE_ID;
-    const FILE_ID = process.env.EXCEL_FILE_ID;
     const res = await client
-      .api(`/sites/${SITE_ID}/drive/items/${FILE_ID}/workbook/tables/OnaylayicilarTablosu/rows`)
+      .api(`${workbookBase()}/tables/OnaylayicilarTablosu/rows`)
       .get();
     return (res.value || []).map((r) => rowToApprover(r.values[0]));
   } catch (err) {
@@ -141,34 +124,120 @@ async function getAllApprovers() {
   }
 }
 
-/** Onaylayıcı ekle */
-async function addApprover(approver) {
-  const client = getAppGraphClient();
-  const row = APPROVER_COLS.map((col) => approver[col] ?? "");
-  await client
-    .api(`${workbookBase()}/tables/OnaylayicilarTablosu/rows/add`)
-    .post({ values: [row] });
-  return approver;
+async function getHierarchyNode(userId) {
+  const all = await getAllApprovers();
+  return all.find((n) => n.id === userId) || null;
 }
 
-/** Onaylayıcı kaldır */
-async function removeApprover(approverId) {
-  const client = getAppGraphClient();
+async function getDirectReports(managerId) {
+  const all = await getAllApprovers();
+  return all.filter((n) => n.managerId === managerId);
+}
 
+async function getManagerOf(userId) {
+  const node = await getHierarchyNode(userId);
+  return node ? node.managerId || "" : "";
+}
+
+async function isTreeAdmin(userId) {
+  const node = await getHierarchyNode(userId);
+  return !!node && String(node.isTreeAdmin).toLowerCase() === "true";
+}
+
+// newManagerId zincirinde userId'ye ulaşılıyorsa döngü var
+async function detectCycle(userId, newManagerId) {
+  if (!newManagerId) return false;
+  if (newManagerId === userId) return true;
+  const all = await getAllApprovers();
+  const byId = new Map(all.map((n) => [n.id, n]));
+  let cursor = newManagerId;
+  const seen = new Set();
+  while (cursor) {
+    if (cursor === userId) return true;
+    if (seen.has(cursor)) return true;
+    seen.add(cursor);
+    const node = byId.get(cursor);
+    cursor = node ? node.managerId : "";
+  }
+  return false;
+}
+
+// Mevcut satırın index'ini bul (yoksa -1)
+async function _findRowIndex(userId) {
+  const client = getAppGraphClient();
   const res = await client
     .api(`${workbookBase()}/tables/OnaylayicilarTablosu/rows`)
     .get();
-
   const rows = res.value || [];
-  const rowIndex = rows.findIndex((r) => r.values[0][0] === approverId);
+  return { rows, index: rows.findIndex((r) => r.values[0][0] === userId) };
+}
 
-  if (rowIndex === -1) throw new Error(`Onaylayıcı bulunamadı: ${approverId}`);
+async function setUserManager(userId, managerId, displayName, mail) {
+  if (await detectCycle(userId, managerId)) {
+    throw new Error("Döngü: bir kullanıcı kendi astının altına alınamaz.");
+  }
+  const client = getAppGraphClient();
+  const { rows, index } = await _findRowIndex(userId);
 
+  if (index === -1) {
+    const newRow = {
+      id: userId,
+      displayName: displayName || "",
+      mail: mail || "",
+      managerId: managerId || "",
+      isTreeAdmin: "",
+      addedAt: new Date().toISOString(),
+    };
+    const row = APPROVER_COLS.map((col) => newRow[col] ?? "");
+    await client
+      .api(`${workbookBase()}/tables/OnaylayicilarTablosu/rows/add`)
+      .post({ values: [row] });
+    return newRow;
+  }
+
+  const current = rowToApprover(rows[index].values[0]);
+  const updated = {
+    ...current,
+    managerId: managerId || "",
+    displayName: displayName || current.displayName,
+    mail: mail || current.mail,
+  };
+  const row = APPROVER_COLS.map((col) => updated[col] ?? "");
   await client
-    .api(
-      `${workbookBase()}/tables/OnaylayicilarTablosu/rows/itemAt(index=${rowIndex})`
-    )
+    .api(`${workbookBase()}/tables/OnaylayicilarTablosu/rows/itemAt(index=${index})`)
+    .patch({ values: [row] });
+  return updated;
+}
+
+async function setTreeAdmin(userId, value) {
+  const client = getAppGraphClient();
+  const { rows, index } = await _findRowIndex(userId);
+  if (index === -1) throw new Error(`Kullanıcı hiyerarşide yok: ${userId}`);
+  const current = rowToApprover(rows[index].values[0]);
+  const updated = { ...current, isTreeAdmin: value ? "true" : "" };
+  const row = APPROVER_COLS.map((col) => updated[col] ?? "");
+  await client
+    .api(`${workbookBase()}/tables/OnaylayicilarTablosu/rows/itemAt(index=${index})`)
+    .patch({ values: [row] });
+  return updated;
+}
+
+async function removeHierarchyNode(userId) {
+  const children = await getDirectReports(userId);
+  if (children.length > 0) {
+    throw new Error(`Bu kullanıcının ${children.length} alt çalışanı var. Önce onları başka bir amire taşıyın.`);
+  }
+  const client = getAppGraphClient();
+  const { index } = await _findRowIndex(userId);
+  if (index === -1) throw new Error(`Kullanıcı bulunamadı: ${userId}`);
+  await client
+    .api(`${workbookBase()}/tables/OnaylayicilarTablosu/rows/itemAt(index=${index})`)
     .delete();
+}
+
+async function countTreeAdmins() {
+  const all = await getAllApprovers();
+  return all.filter((n) => String(n.isTreeAdmin).toLowerCase() === "true").length;
 }
 
 module.exports = {
@@ -177,6 +246,13 @@ module.exports = {
   addRequest,
   updateRequest,
   getAllApprovers,
-  addApprover,
-  removeApprover,
+  getHierarchyNode,
+  getDirectReports,
+  getManagerOf,
+  isTreeAdmin,
+  detectCycle,
+  setUserManager,
+  setTreeAdmin,
+  removeHierarchyNode,
+  countTreeAdmins,
 };

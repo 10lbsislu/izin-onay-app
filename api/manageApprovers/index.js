@@ -1,11 +1,26 @@
 /**
  * manageApprovers/index.js
  * POST /api/manageApprovers
- * Body: { action: "add" | "remove", userId, displayName?, mail? }
+ *
+ * Hiyerarşi yönetimi action'ları:
+ *   get-tree      → tüm hiyerarşi node'larını döndür (herkes)
+ *   set-manager   → kullanıcının amirini ata/değiştir (tree admin)
+ *   remove        → hiyerarşi node'unu sil (tree admin, çocuk yoksa)
+ *   grant-admin   → tree admin yetkisi ver (tree admin)
+ *   revoke-admin  → tree admin yetkisini kaldır (tree admin, son admin değilse)
  */
 
 const { app } = require("@azure/functions");
-const { addApprover, removeApprover } = require("../shared/excelService");
+const { extractCaller } = require("../shared/authMiddleware");
+const {
+  getAllApprovers,
+  getHierarchyNode,
+  setUserManager,
+  setTreeAdmin,
+  removeHierarchyNode,
+  isTreeAdmin,
+  countTreeAdmins,
+} = require("../shared/excelService");
 
 app.http("manageApprovers", {
   methods: ["POST"],
@@ -19,52 +34,82 @@ app.http("manageApprovers", {
 
     try {
       const body = await request.json();
-      const { action, userId, displayName, mail } = body;
+      const { action } = body;
 
-      if (!action || !userId) {
-        return {
-          status: 400,
-          headers,
-          body: JSON.stringify({ error: "action ve userId zorunludur." }),
-        };
+      if (!action) {
+        return { status: 400, headers, body: JSON.stringify({ error: "action zorunludur." }) };
       }
 
-      if (action === "add") {
-        const approver = {
-          id: userId,
-          displayName: displayName || "",
-          mail: mail || "",
-          addedAt: new Date().toISOString(),
-        };
-        await addApprover(approver);
-        return {
-          status: 201,
-          headers,
-          body: JSON.stringify({ approver }),
-        };
+      // get-tree herkese açık
+      if (action === "get-tree") {
+        const nodes = await getAllApprovers();
+        const normalized = nodes.map((n) => ({
+          ...n,
+          isTreeAdmin: String(n.isTreeAdmin).toLowerCase() === "true",
+          managerId: n.managerId || "",
+        }));
+        return { status: 200, headers, body: JSON.stringify({ nodes: normalized }) };
+      }
+
+      // Yazma action'ları için yetki kontrolü
+      const caller = await extractCaller(request);
+      if (!caller) {
+        return { status: 401, headers, body: JSON.stringify({ error: "Yetkilendirme başarısız." }) };
+      }
+
+      const callerIsAdmin = await isTreeAdmin(caller.userId);
+      if (!callerIsAdmin) {
+        return { status: 403, headers, body: JSON.stringify({ error: "Bu işlem için tree admin yetkisi gerekli." }) };
+      }
+
+      if (action === "set-manager") {
+        const { userId, managerId, displayName, mail } = body;
+        if (!userId) {
+          return { status: 400, headers, body: JSON.stringify({ error: "userId zorunludur." }) };
+        }
+        const node = await setUserManager(userId, managerId || "", displayName, mail);
+        return { status: 200, headers, body: JSON.stringify({ node }) };
       }
 
       if (action === "remove") {
-        await removeApprover(userId);
-        return {
-          status: 200,
-          headers,
-          body: JSON.stringify({ removed: userId }),
-        };
+        const { userId } = body;
+        if (!userId) {
+          return { status: 400, headers, body: JSON.stringify({ error: "userId zorunludur." }) };
+        }
+        await removeHierarchyNode(userId);
+        return { status: 200, headers, body: JSON.stringify({ removed: userId }) };
       }
 
-      return {
-        status: 400,
-        headers,
-        body: JSON.stringify({ error: "Bilinmeyen action." }),
-      };
+      if (action === "grant-admin") {
+        const { userId } = body;
+        if (!userId) {
+          return { status: 400, headers, body: JSON.stringify({ error: "userId zorunludur." }) };
+        }
+        const target = await getHierarchyNode(userId);
+        if (!target) {
+          return { status: 404, headers, body: JSON.stringify({ error: "Kullanıcı hiyerarşide yok." }) };
+        }
+        const node = await setTreeAdmin(userId, true);
+        return { status: 200, headers, body: JSON.stringify({ node }) };
+      }
+
+      if (action === "revoke-admin") {
+        const { userId } = body;
+        if (!userId) {
+          return { status: 400, headers, body: JSON.stringify({ error: "userId zorunludur." }) };
+        }
+        const adminCount = await countTreeAdmins();
+        if (adminCount <= 1) {
+          return { status: 400, headers, body: JSON.stringify({ error: "Son tree admin'i kaldıramazsınız." }) };
+        }
+        const node = await setTreeAdmin(userId, false);
+        return { status: 200, headers, body: JSON.stringify({ node }) };
+      }
+
+      return { status: 400, headers, body: JSON.stringify({ error: "Bilinmeyen action." }) };
     } catch (err) {
       context.error("manageApprovers hata:", err);
-      return {
-        status: 500,
-        headers,
-        body: JSON.stringify({ error: err.message }),
-      };
+      return { status: 500, headers, body: JSON.stringify({ error: err.message }) };
     }
   },
 });

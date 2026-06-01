@@ -89,28 +89,20 @@ async function extractCaller(request) {
 }
 
 /**
- * Görünürlük kurallarını uygular.
+ * Hiyerarşik görünürlük kuralları:
+ *  - Kullanıcı kendi taleplerini görür
+ *  - Doğrudan astlarının taleplerini görür
+ *  - Başkalarının taleplerini görmez (zincirde yukarı yayılma yok)
  *
- * KURAL:
- *  - beklemede  → sadece talepçi VEYA onaylayıcı görebilir
- *  - onaylandi / reddedildi → talepçi kendi talebini, onaylayıcı hepsini görebilir
- *
- * @param {Array}   requests    - Tüm ham talepler
- * @param {string}  callerId    - İstekte bulunan kullanıcının Azure AD oid'si
- * @param {boolean} isApprover  - Kullanıcı onaylayıcı mı?
+ * @param {Array}        requests          - Tüm ham talepler
+ * @param {string}       callerId          - Çağıran kullanıcı oid
+ * @param {Set<string>}  directReportIds   - Doğrudan astların id'leri
  * @returns {Array} Filtrelenmiş talepler
  */
-function applyVisibilityRules(requests, callerId, isApprover) {
+function applyVisibilityRules(requests, callerId, directReportIds) {
   return requests.filter((req) => {
-    const isOwner = req.requesterId === callerId;
-
-    // Onaylayıcılar her durumda tüm talepleri görür
-    if (isApprover) return true;
-
-    // Talep sahibi kendi taleplerinin hepsini görür
-    if (isOwner) return true;
-
-    // Diğer kullanıcılar hiçbir talebi göremez
+    if (req.requesterId === callerId) return true;
+    if (directReportIds.has(req.requesterId)) return true;
     return false;
   });
 }
