@@ -34,6 +34,19 @@ function excelDateToISO(value) {
   return date.toISOString().split("T")[0];
 }
 
+// "15:00" stringi olarak geldi → olduğu gibi döndür
+// 0.625 sayısı (Excel time serial) olarak geldi → "15:00"e çevir
+function excelTimeToHHMM(value) {
+  if (value === null || value === undefined || value === "") return "";
+  if (typeof value === "string" && value.includes(":")) return value;
+  const num = Number(value);
+  if (isNaN(num)) return String(value);
+  const totalMinutes = Math.round(num * 24 * 60);
+  const hours = Math.floor(totalMinutes / 60) % 24;
+  const minutes = totalMinutes % 60;
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
+
 function rowToRequest(row) {
   const obj = {};
   REQUEST_COLS.forEach((col, i) => {
@@ -42,6 +55,8 @@ function rowToRequest(row) {
   if (obj.totalDays) obj.totalDays = Number(obj.totalDays);
   if (obj.startDate) obj.startDate = excelDateToISO(obj.startDate);
   if (obj.endDate) obj.endDate = excelDateToISO(obj.endDate);
+  if (obj.startTime !== "" && obj.startTime !== undefined) obj.startTime = excelTimeToHHMM(obj.startTime);
+  if (obj.endTime !== "" && obj.endTime !== undefined) obj.endTime = excelTimeToHHMM(obj.endTime);
   return obj;
 }
 

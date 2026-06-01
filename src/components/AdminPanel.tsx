@@ -20,7 +20,7 @@ import {
 } from "@fluentui/react-icons";
 import type { OrgUser, LeaveStatus } from "../types";
 import type { EnrichedLeaveRequest, GetRequestsResponse } from "../services/requestService";
-import { LEAVE_TYPE_LABELS } from "../types";
+import { LEAVE_TYPE_LABELS, formatDuration } from "../types";
 import { getRequests, updateRequestStatus } from "../services/requestService";
 import { StatusBadge } from "./StatusBadge";
 import { VisibilityBadge } from "./VisibilityBadge";
@@ -153,7 +153,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser, token, isTr
               {LEAVE_TYPE_LABELS[req.leaveType]}
             </Badge>
             <StatusBadge status={req.status} />
-            <Text size={200}>{req.totalDays} iş günü</Text>
+            <Text size={200}>{formatDuration(req)}</Text>
             <VisibilityBadge meta={req._visibility} />
           </div>
 
@@ -253,7 +253,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser, token, isTr
                   {selectedRequest.leaveType === "saatlik" && selectedRequest.startTime && selectedRequest.endTime
                     ? ` (${selectedRequest.startTime}–${selectedRequest.endTime})`
                     : ` — ${new Date(selectedRequest.endDate).toLocaleDateString("tr-TR")}`}
-                  {" "}({selectedRequest.totalDays} iş günü)
+                  {" "}({formatDuration(selectedRequest)})
                 </Text>
                 <Field label={dialogAction === "reject" ? "Red Gerekçesi (zorunlu)" : "Yorum (opsiyonel)"}>
                   <Textarea
@@ -385,7 +385,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser, token, isTr
                             : ` — ${new Date(req.endDate).toLocaleDateString("tr-TR")}`}
                         </Text>
                       </TableCell>
-                      <TableCell><Text size={200}>{req.totalDays}</Text></TableCell>
+                      <TableCell><Text size={200}>{formatDuration(req)}</Text></TableCell>
                       <TableCell><StatusBadge status={req.status} /></TableCell>
                       <TableCell>
                         {req._visibility?.badge !== "normal" ? (

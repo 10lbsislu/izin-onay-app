@@ -90,6 +90,17 @@ export const RequestForm: React.FC<RequestFormProps> = ({
 
   const isHourly = leaveType === "saatlik";
 
+  // 24-saatlik, 30 dk aralıklı saat seçenekleri (Türkiye standardı, AM/PM yok)
+  const TIME_OPTIONS = React.useMemo(() => {
+    const opts: string[] = [];
+    for (let h = 0; h < 24; h++) {
+      for (let m = 0; m < 60; m += 30) {
+        opts.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
+      }
+    }
+    return opts;
+  }, []);
+
   // Root kullanıcı: hiyerarşiden olası onaylayıcıları yükle
   useEffect(() => {
     if (!isRoot) return;
@@ -280,18 +291,24 @@ export const RequestForm: React.FC<RequestFormProps> = ({
               </Field>
               <div className={styles.row}>
                 <Field label="Saat Başlangıç" required>
-                  <Input
-                    type="time"
+                  <Select
                     value={startTime}
                     onChange={(_, d) => setStartTime(d.value)}
-                  />
+                  >
+                    {TIME_OPTIONS.map((t) => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </Select>
                 </Field>
                 <Field label="Saat Bitiş" required>
-                  <Input
-                    type="time"
+                  <Select
                     value={endTime}
                     onChange={(_, d) => setEndTime(d.value)}
-                  />
+                  >
+                    {TIME_OPTIONS.map((t) => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </Select>
                 </Field>
               </div>
             </>

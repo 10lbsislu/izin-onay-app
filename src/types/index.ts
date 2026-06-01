@@ -86,3 +86,12 @@ export const STATUS_LABELS: Record<LeaveStatus, string> = {
   onaylandi: "Onaylandı",
   reddedildi: "Reddedildi",
 };
+
+/** Süreyi insan-okur formatta: saatlik için "1 saat", aksi için "X iş günü" */
+export function formatDuration(req: { leaveType: LeaveType; totalDays: number }): string {
+  if (req.leaveType === "saatlik") {
+    const hours = Math.round(req.totalDays * 8 * 10) / 10;
+    return `${hours} saat`;
+  }
+  return `${req.totalDays} iş günü`;
+}

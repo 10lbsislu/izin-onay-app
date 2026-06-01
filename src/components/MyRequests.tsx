@@ -21,7 +21,7 @@ import {
 import { ArrowClockwiseRegular, DocumentRegular } from "@fluentui/react-icons";
 import type { EnrichedLeaveRequest, GetRequestsResponse } from "../services/requestService";
 import { getRequests } from "../services/requestService";
-import { LEAVE_TYPE_LABELS } from "../types";
+import { LEAVE_TYPE_LABELS, formatDuration } from "../types";
 import type { OrgUser } from "../types";
 import { StatusBadge } from "./StatusBadge";
 import { VisibilityBadge } from "./VisibilityBadge";
@@ -156,7 +156,7 @@ export const MyRequests: React.FC<MyRequestsProps> = ({
               </Badge>
               <StatusBadge status={req.status} />
               <Text size={200} style={{ color: "var(--colorNeutralForeground3)" }}>
-                {req.totalDays} iş günü
+                {formatDuration(req)}
               </Text>
               {/* 🔒 Görünürlük rozeti — sadece beklemedeyken */}
               <VisibilityBadge meta={req._visibility} />
