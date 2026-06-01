@@ -53,6 +53,15 @@ app.http("createRequest", {
         };
       }
 
+      // Açıklama zorunlu
+      if (!body.description || !String(body.description).trim()) {
+        return {
+          status: 400,
+          headers,
+          body: JSON.stringify({ error: "Açıklama zorunludur." }),
+        };
+      }
+
       // Hiyerarşi: kullanıcının amirini bul, talebi ona ata
       const callerNode = await getHierarchyNode(caller.userId);
       const callerIsTreeAdmin = callerNode &&

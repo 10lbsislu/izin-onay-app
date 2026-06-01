@@ -196,6 +196,16 @@ export const RequestForm: React.FC<RequestFormProps> = ({
         return;
       }
     }
+    if (!description.trim()) {
+      dispatchToast(
+        <Toast>
+          <ToastTitle>Açıklama Eksik</ToastTitle>
+          <ToastBody>İzin sebebini belirtmek zorunludur.</ToastBody>
+        </Toast>,
+        { intent: "error" }
+      );
+      return;
+    }
     if (isRoot && !pickedApproverId) {
       dispatchToast(
         <Toast>
@@ -361,9 +371,9 @@ export const RequestForm: React.FC<RequestFormProps> = ({
           )}
 
           {/* Açıklama */}
-          <Field label="Açıklama">
+          <Field label="Açıklama" required>
             <Textarea
-              placeholder="İzin sebebi veya ek bilgi girebilirsiniz..."
+              placeholder="İzin sebebini belirtin..."
               value={description}
               onChange={(_, d) => setDescription(d.value)}
               resize="vertical"
