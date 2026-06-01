@@ -31,12 +31,24 @@ const REQUEST_COLS = [
 
 const APPROVER_COLS = ["id", "displayName", "mail", "addedAt"];
 
+function excelDateToISO(value) {
+  if (!value) return "";
+  if (typeof value === "string" && value.includes("-")) return value;
+  const num = Number(value);
+  if (isNaN(num)) return value;
+  // Excel epoch: 1 Ocak 1900 = 1, ancak Excel 1900'ü yanlış leap year sayar
+  const date = new Date((num - 25569) * 86400 * 1000);
+  return date.toISOString().split("T")[0];
+}
+
 function rowToRequest(row) {
   const obj = {};
   REQUEST_COLS.forEach((col, i) => {
     obj[col] = row[i] ?? "";
   });
   if (obj.totalDays) obj.totalDays = Number(obj.totalDays);
+  if (obj.startDate) obj.startDate = excelDateToISO(obj.startDate);
+  if (obj.endDate) obj.endDate = excelDateToISO(obj.endDate);
   return obj;
 }
 
