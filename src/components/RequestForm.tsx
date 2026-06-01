@@ -33,14 +33,16 @@ import { LEAVE_TYPE_LABELS } from "../types";
 
 const useStyles = makeStyles({
   card: {
-    maxWidth: "640px",
+    maxWidth: "680px",
     margin: "0 auto",
+    boxShadow: tokens.shadow8,
+    border: `1px solid ${tokens.colorNeutralStroke2}`,
   },
   form: {
     display: "flex",
     flexDirection: "column",
-    gap: "16px",
-    padding: "8px 0",
+    gap: "18px",
+    padding: "12px 0 4px",
   },
   row: {
     display: "grid",
@@ -53,11 +55,17 @@ const useStyles = makeStyles({
   dateInfo: {
     display: "flex",
     alignItems: "center",
-    gap: "8px",
-    padding: "8px 12px",
+    gap: "10px",
+    padding: "10px 14px",
     backgroundColor: tokens.colorBrandBackground2,
     borderRadius: tokens.borderRadiusMedium,
     border: `1px solid ${tokens.colorBrandStroke1}`,
+  },
+  submitBtn: {
+    height: "44px",
+    fontSize: tokens.fontSizeBase300,
+    fontWeight: tokens.fontWeightSemibold,
+    boxShadow: tokens.shadow4,
   },
 });
 
@@ -394,6 +402,7 @@ export const RequestForm: React.FC<RequestFormProps> = ({
             type="submit"
             icon={<SendRegular />}
             disabled={isSubmitting}
+            className={styles.submitBtn}
           >
             {isSubmitting ? "Gönderiliyor..." : "Talebi Gönder"}
           </Button>

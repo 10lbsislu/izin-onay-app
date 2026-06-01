@@ -68,9 +68,10 @@ const useStyles = makeStyles({
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
-    padding: "12px 20px",
-    backgroundColor: tokens.colorNeutralBackground1,
+    padding: "14px 24px",
+    background: `linear-gradient(135deg, ${tokens.colorNeutralBackground1} 0%, ${tokens.colorBrandBackground2} 200%)`,
     borderBottom: `1px solid ${tokens.colorNeutralStroke2}`,
+    boxShadow: tokens.shadow4,
     position: "sticky",
     top: 0,
     zIndex: 100,
@@ -78,11 +79,31 @@ const useStyles = makeStyles({
   appBarLeft: {
     display: "flex",
     alignItems: "center",
-    gap: "12px",
+    gap: "14px",
+  },
+  brandIcon: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: "40px",
+    height: "40px",
+    borderRadius: tokens.borderRadiusLarge,
+    background: `linear-gradient(135deg, ${tokens.colorBrandBackground} 0%, ${tokens.colorBrandBackgroundHover} 100%)`,
+    color: tokens.colorNeutralForegroundOnBrand,
+    boxShadow: tokens.shadow4,
+  },
+  userInfoBox: {
+    display: "flex",
+    alignItems: "center",
+    gap: "10px",
+    padding: "6px 12px",
+    borderRadius: tokens.borderRadiusLarge,
+    backgroundColor: tokens.colorNeutralBackground3,
+    border: `1px solid ${tokens.colorNeutralStroke2}`,
   },
   content: {
-    padding: "20px",
-    maxWidth: "900px",
+    padding: "24px",
+    maxWidth: "960px",
     margin: "0 auto",
   },
   centerScreen: {
@@ -96,7 +117,8 @@ const useStyles = makeStyles({
   tabBar: {
     backgroundColor: tokens.colorNeutralBackground1,
     borderBottom: `1px solid ${tokens.colorNeutralStroke2}`,
-    padding: "0 20px",
+    padding: "4px 20px 0",
+    boxShadow: tokens.shadow2,
   },
 });
 
@@ -269,27 +291,33 @@ function AppContent() {
       {/* Üst bar */}
       <div className={styles.appBar}>
         <div className={styles.appBarLeft}>
-          <ShieldCheckmarkRegular fontSize={28} color={tokens.colorBrandForeground1} />
-          <div>
-            <Text weight="semibold" size={400}>
-              İzin Onay Sistemi
+          <div className={styles.brandIcon}>
+            <ShieldCheckmarkRegular fontSize={22} />
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.2 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <Text weight="semibold" size={400}>
+                İzin Onay Sistemi
+              </Text>
+              {isAdmin && (
+                <Badge appearance="filled" color="brand" size="small">
+                  Yönetici
+                </Badge>
+              )}
+            </div>
+            <Text size={100} style={{ color: "var(--colorNeutralForeground3)" }}>
+              Çalışan izin yönetimi
             </Text>
-            {isAdmin && (
-              <Badge appearance="filled" color="brand" size="small" style={{ marginLeft: "8px" }}>
-                Yönetici
-              </Badge>
-            )}
           </div>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+        <div className={styles.userInfoBox}>
           <Avatar
             name={currentUser.displayName}
-            size={32}
+            size={36}
             color="colorful"
           />
-          <div>
+          <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.2 }}>
             <Text size={200} weight="semibold">{currentUser.displayName}</Text>
-            <br />
             <Text size={100} style={{ color: "var(--colorNeutralForeground3)" }}>
               {currentUser.jobTitle ?? currentUser.mail}
             </Text>

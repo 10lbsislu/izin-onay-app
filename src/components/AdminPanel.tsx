@@ -28,27 +28,46 @@ import { HierarchyEditor } from "./HierarchyEditor";
 
 const useStyles = makeStyles({
   panel: { display: "flex", flexDirection: "column", gap: "16px" },
-  requestCard: { border: `1px solid ${tokens.colorNeutralStroke1}`, marginBottom: "8px" },
-  pendingCard: {
-    border: `1px solid ${tokens.colorNeutralStroke1}`,
-    marginBottom: "8px",
-    borderLeft: `3px solid ${tokens.colorPaletteYellowBorderActive}`,
+  requestCard: {
+    border: `1px solid ${tokens.colorNeutralStroke2}`,
+    marginBottom: "10px",
+    boxShadow: tokens.shadow2,
   },
-  cardBody: { display: "flex", flexDirection: "column", gap: "8px", padding: "4px 0" },
-  metaRow: { display: "flex", flexWrap: "wrap", gap: "10px", alignItems: "center" },
+  pendingCard: {
+    border: `1px solid ${tokens.colorNeutralStroke2}`,
+    marginBottom: "10px",
+    borderLeft: `4px solid ${tokens.colorPaletteYellowBorderActive}`,
+    boxShadow: tokens.shadow4,
+  },
+  cardBody: { display: "flex", flexDirection: "column", gap: "10px", padding: "6px 0" },
+  metaRow: { display: "flex", flexWrap: "wrap", gap: "12px", alignItems: "center" },
   actions: { display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "4px" },
   filterBar: { display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" },
   emptyState: {
     display: "flex", flexDirection: "column", alignItems: "center",
-    gap: "12px", padding: "48px 24px", color: tokens.colorNeutralForeground3,
+    gap: "12px", padding: "56px 24px", color: tokens.colorNeutralForeground3,
+    backgroundColor: tokens.colorNeutralBackground2,
+    borderRadius: tokens.borderRadiusLarge,
+    border: `1px dashed ${tokens.colorNeutralStroke2}`,
   },
   visibilityNote: {
-    display: "flex", alignItems: "center", gap: "6px",
-    padding: "8px 12px",
+    display: "flex", alignItems: "center", gap: "8px",
+    padding: "10px 14px",
     backgroundColor: tokens.colorNeutralBackground3,
     borderRadius: tokens.borderRadiusMedium,
-    color: tokens.colorNeutralForeground3,
-    fontSize: tokens.fontSizeBase100,
+    color: tokens.colorNeutralForeground2,
+    fontSize: tokens.fontSizeBase200,
+    marginBottom: "10px",
+  },
+  pendingHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: "12px",
+    padding: "12px 16px",
+    background: `linear-gradient(135deg, ${tokens.colorPaletteYellowBackground1} 0%, ${tokens.colorBrandBackground2} 100%)`,
+    borderRadius: tokens.borderRadiusLarge,
+    border: `1px solid ${tokens.colorNeutralStroke2}`,
   },
 });
 
@@ -310,20 +329,43 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser, token, isTr
         {/* ── Bekleyen Talepler ─── */}
         {activeTab === "pending" && hasDirectReports && (
           <div>
+            {/* Özet header */}
+            <div className={styles.pendingHeader}>
+              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                <ClipboardTaskListLtrRegular fontSize={28} />
+                <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.2 }}>
+                  <Text weight="semibold" size={400}>
+                    {pendingRequests.length > 0
+                      ? `${pendingRequests.length} talep onayınızı bekliyor`
+                      : "Onayınızı bekleyen talep yok"}
+                  </Text>
+                  <Text size={100} style={{ color: "var(--colorNeutralForeground3)" }}>
+                    Doğrudan astlarınızın izin talepleri
+                  </Text>
+                </div>
+              </div>
+              <Button
+                icon={<ArrowClockwiseRegular />}
+                appearance="subtle"
+                onClick={loadData}
+              >
+                Yenile
+              </Button>
+            </div>
+
             {/* Görünürlük notu */}
             <div className={styles.visibilityNote}>
-              <LockClosedRegular fontSize={13} />
-              <Text size={100}>
+              <LockClosedRegular fontSize={14} />
+              <Text size={200}>
                 Sadece doğrudan astlarınızın talepleri burada görünür. Onaylandıktan sonra çalışan kendi talebini görebilir.
               </Text>
             </div>
-            <Toolbar>
-              <ToolbarButton icon={<ArrowClockwiseRegular />} onClick={loadData}>Yenile</ToolbarButton>
-            </Toolbar>
+
             {pendingRequests.length === 0 ? (
               <div className={styles.emptyState}>
-                <CheckmarkCircleRegular fontSize={48} />
-                <Text size={300}>Bekleyen talep bulunmuyor.</Text>
+                <CheckmarkCircleRegular fontSize={56} />
+                <Text size={400} weight="semibold">Bekleyen talep bulunmuyor</Text>
+                <Text size={200}>Tüm talepler güncel görünüyor.</Text>
               </div>
             ) : (
               pendingRequests.map((req) => <RequestCard key={req.id} req={req} showActions />)

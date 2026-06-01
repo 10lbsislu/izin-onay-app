@@ -291,4 +291,100 @@ async function notifyApproverByEmail(request, approverEmail) {
   }
 }
 
-module.exports = { notifyChannel, notifyUser, notifyApproverByEmail };
+// ─── Onaylayıcıya Teams chat bildirimi ───────────────────────────────────────
+
+/**
+ * Talepçi ile onaylayıcı arasında 1-1 Teams chat'i bul/oluştur,
+ * Adaptive Card mesajı gönder. Hata olursa ana akışı durdurmaz.
+ */
+async function notifyApproverInTeams(request, approverId) {
+  if (!approverId) return;
+  const client = getAppGraphClient();
+  const appUrl = process.env.FRONTEND_URL || "https://teams.microsoft.com";
+  const teamsUrl = buildTeamsDeepLink() || appUrl;
+
+  const card = {
+    type: "AdaptiveCard",
+    $schema: "http://adaptivecards.io/schemas/adaptive-card.json",
+    version: "1.5",
+    body: [
+      {
+        type: "TextBlock",
+        text: "📋 Yeni İzin Talebi",
+        weight: "Bolder",
+        size: "Large",
+        color: "Accent",
+      },
+      {
+        type: "TextBlock",
+        text: `${request.requesterName} sizden onay bekliyor.`,
+        wrap: true,
+      },
+      {
+        type: "FactSet",
+        facts: [
+          { title: "İzin Türü", value: izinTuruLabel(request.leaveType) },
+          { title: "Tarih", value: formatRequestDateRange(request) },
+          { title: "Süre", value: request.leaveType === "saatlik"
+              ? `${request.totalDays} iş günü karşılığı (saatlik)`
+              : `${request.totalDays} iş günü` },
+          ...(request.description ? [{ title: "Açıklama", value: request.description }] : []),
+        ],
+      },
+    ],
+    actions: [
+      {
+        type: "Action.OpenUrl",
+        title: "🔍 Talebi İncele ve Onayla",
+        url: teamsUrl,
+        style: "positive",
+      },
+    ],
+  };
+
+  try {
+    // 1) Talepçi ↔ Onaylayıcı arasında 1-1 chat oluştur (varsa Graph aynısını döner)
+    const chat = await client
+      .api("/chats")
+      .post({
+        chatType: "oneOnOne",
+        members: [
+          {
+            "@odata.type": "#microsoft.graph.aadUserConversationMember",
+            roles: ["owner"],
+            "user@odata.bind": `https://graph.microsoft.com/v1.0/users/${request.requesterId}`,
+          },
+          {
+            "@odata.type": "#microsoft.graph.aadUserConversationMember",
+            roles: ["owner"],
+            "user@odata.bind": `https://graph.microsoft.com/v1.0/users/${approverId}`,
+          },
+        ],
+      });
+
+    if (!chat?.id) throw new Error("Chat ID alınamadı.");
+
+    // 2) Adaptive Card mesajı gönder
+    await client
+      .api(`/chats/${chat.id}/messages`)
+      .post({
+        body: {
+          contentType: "html",
+          content: '<attachment id="leaveCard"></attachment>',
+        },
+        attachments: [
+          {
+            id: "leaveCard",
+            contentType: "application/vnd.microsoft.card.adaptive",
+            content: JSON.stringify(card),
+          },
+        ],
+      });
+
+    console.log(`Teams chat bildirimi gönderildi: ${approverId}`);
+  } catch (err) {
+    console.error("Teams chat bildirimi hatası:", err.message);
+  }
+}
+
+module.exports = { notifyChannel, notifyUser, notifyApproverByEmail, notifyApproverInTeams };

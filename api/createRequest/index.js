@@ -9,7 +9,7 @@
 const { app } = require("@azure/functions");
 const { v4: uuidv4 } = require("uuid");
 const { addRequest, getHierarchyNode } = require("../shared/excelService");
-const { notifyChannel, notifyApproverByEmail } = require("../shared/notifyService");
+const { notifyChannel, notifyApproverByEmail, notifyApproverInTeams } = require("../shared/notifyService");
 const { extractCaller } = require("../shared/authMiddleware");
 
 app.http("createRequest", {
@@ -137,6 +137,11 @@ app.http("createRequest", {
       // Onaylayıcıya e-posta bildirimi
       notifyApproverByEmail(newRequest, approverEmail).catch((e) =>
         context.log.warn("Mail bildirimi başarısız:", e.message)
+      );
+
+      // Onaylayıcıya Teams chat bildirimi
+      notifyApproverInTeams(newRequest, approverId).catch((e) =>
+        context.log.warn("Teams bildirimi başarısız:", e.message)
       );
 
       return {
