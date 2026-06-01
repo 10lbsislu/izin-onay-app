@@ -204,18 +204,54 @@ function formatRequestDateRange(request) {
 
 // ─── Onaylayıcıya mail bildirimi ─────────────────────────────────────────────
 
+/**
+ * Teams deep link oluşturur. TEAMS_APP_ID env değişkeni Teams Admin Center'a
+ * yüklenen app'in catalog ID'sidir (manifest.json'daki id ile aynı).
+ * Env yoksa web URL'ye düşer.
+ */
+function buildTeamsDeepLink() {
+  const appId = process.env.TEAMS_APP_ID;
+  const entityId = process.env.TEAMS_ENTITY_ID || "izin-onay-tab";
+  if (!appId) return null;
+  return `https://teams.microsoft.com/l/entity/${appId}/${entityId}`;
+}
+
 async function notifyApproverByEmail(request, approverEmail) {
   if (!approverEmail) {
     console.warn("notifyApproverByEmail: onaylayıcı maili yok, atlandı.");
     return;
   }
   const client = getAppGraphClient();
-  const appUrl = process.env.FRONTEND_URL || "https://teams.microsoft.com";
+  const webUrl = process.env.FRONTEND_URL || "https://teams.microsoft.com";
+  const teamsUrl = buildTeamsDeepLink();
   const subject = `İzin Talebi — ${request.requesterName}`;
   const dateLine = formatRequestDateRange(request);
   const sureLine = request.leaveType === "saatlik"
     ? `${request.totalDays} iş günü karşılığı (saatlik)`
     : `${request.totalDays} iş günü`;
+
+  const primaryUrl = teamsUrl || webUrl;
+  const primaryLabel = teamsUrl ? "🔍 Teams'te Aç ve Onayla" : "🔍 Talebi İncele ve Onayla";
+
+  const buttonsHtml = teamsUrl
+    ? `
+      <p style="margin-top: 16px;">
+        <a href="${teamsUrl}" style="background:#5b5fc7;color:white;padding:10px 20px;border-radius:4px;text-decoration:none;display:inline-block;margin-right:8px;">
+          🔍 Teams'te Aç ve Onayla
+        </a>
+        <a href="${webUrl}" style="background:#0078d4;color:white;padding:10px 20px;border-radius:4px;text-decoration:none;display:inline-block;">
+          🌐 Web'de Aç
+        </a>
+      </p>
+      <p style="color:#666; font-size:11px; margin-top:8px;">
+        Teams butonu Teams uygulamasında bir kez daha giriş yapmadan açar.
+      </p>`
+    : `
+      <p style="margin-top: 16px;">
+        <a href="${primaryUrl}" style="background:#0078d4;color:white;padding:10px 20px;border-radius:4px;text-decoration:none;display:inline-block;">
+          ${primaryLabel}
+        </a>
+      </p>`;
 
   const html = `
     <div style="font-family: Segoe UI, Arial, sans-serif; max-width: 560px;">
@@ -228,11 +264,7 @@ async function notifyApproverByEmail(request, approverEmail) {
         ${request.description ? `<tr><td style="padding:4px 12px 4px 0;vertical-align:top;"><b>Açıklama:</b></td><td>${request.description}</td></tr>` : ""}
         <tr><td style="padding:4px 12px 4px 0;"><b>E-posta:</b></td><td>${request.requesterEmail || "—"}</td></tr>
       </table>
-      <p style="margin-top: 16px;">
-        <a href="${appUrl}" style="background:#0078d4;color:white;padding:10px 20px;border-radius:4px;text-decoration:none;display:inline-block;">
-          🔍 Talebi İncele ve Onayla
-        </a>
-      </p>
+      ${buttonsHtml}
       <p style="color:#888; font-size:12px; margin-top:24px;">
         Bu e-posta İzin Onay Sistemi tarafından otomatik gönderildi.
       </p>
