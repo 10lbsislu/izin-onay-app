@@ -25,13 +25,18 @@ const useStyles = makeStyles({
   },
   dropdown: {
     position: "fixed",
-    zIndex: 10000,
+    zIndex: 9999999,
     backgroundColor: tokens.colorNeutralBackground1,
     border: `1px solid ${tokens.colorNeutralStroke1}`,
     borderRadius: tokens.borderRadiusMedium,
     boxShadow: tokens.shadow16,
     maxHeight: "280px",
     overflowY: "auto",
+  },
+  errorText: {
+    padding: "12px",
+    color: tokens.colorPaletteRedForeground1,
+    fontSize: tokens.fontSizeBase200,
   },
   item: {
     display: "flex",
@@ -97,6 +102,7 @@ export const UserPicker: React.FC<UserPickerProps> = ({
   const [results, setResults] = useState<OrgUser[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -155,12 +161,16 @@ export const UserPicker: React.FC<UserPickerProps> = ({
       }
       debounceTimer.current = setTimeout(async () => {
         setIsLoading(true);
+        setSearchError(null);
         try {
           const users = await searchOrgUsers(token, q);
           setResults(users.filter((u) => !exclude.includes(u.id)));
           setIsOpen(true);
         } catch (err) {
           console.error("Kullanıcı arama hatası:", err);
+          setResults([]);
+          setSearchError(err instanceof Error ? err.message : String(err));
+          setIsOpen(true);
         } finally {
           setIsLoading(false);
         }
@@ -251,9 +261,15 @@ export const UserPicker: React.FC<UserPickerProps> = ({
           className={styles.dropdown}
           style={{ top: dropdownPos.top, left: dropdownPos.left, width: dropdownPos.width }}
         >
-          <Text className={styles.noResult} size={200}>
-            "{query}" için sonuç bulunamadı
-          </Text>
+          {searchError ? (
+            <Text className={styles.errorText} size={200}>
+              Arama hatası: {searchError}
+            </Text>
+          ) : (
+            <Text className={styles.noResult} size={200}>
+              "{query}" için sonuç bulunamadı
+            </Text>
+          )}
         </div>,
         document.body
       )}
