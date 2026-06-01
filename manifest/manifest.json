@@ -39,5 +39,14 @@
   "webApplicationInfo": {
     "id": "9ad8e452-bf38-4654-9f1b-3194fb6ed859",
     "resource": "api://wonderful-field-04c5e0703.7.azurestaticapps.net/9ad8e452-bf38-4654-9f1b-3194fb6ed859"
+  },
+  "activities": {
+    "activityTypes": [
+      {
+        "type": "leaveRequestApproval",
+        "description": "Yeni izin talebi onayı bekliyor",
+        "templateText": "{actor} sizden izin talebi onayı bekliyor"
+      }
+    ]
   }
 }

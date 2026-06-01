@@ -298,113 +298,47 @@ async function notifyApproverByEmail(request, approverEmail) {
   }
 }
 
-// ─── Onaylayıcıya Teams chat bildirimi ───────────────────────────────────────
+// ─── Onaylayıcıya Teams Activity Feed bildirimi ──────────────────────────────
 
 /**
- * Talepçi ile onaylayıcı arasında 1-1 Teams chat'i bul/oluştur,
- * Adaptive Card mesajı gönder. Hata olursa ana akışı durdurmaz.
+ * Teams'in bildirim merkezine (zil ikonu / activity feed) bildirim gönderir.
+ * Permission: TeamsActivity.Send (Application).
+ * Manifest'te activityTypes tanımlı olmalı (leaveRequestApproval).
+ * Onaylayıcının uygulamayı yüklemiş olması gerekir (Teams Admin Center).
  */
 async function notifyApproverInTeams(request, approverId) {
   if (!approverId) return;
   const client = getAppGraphClient();
-  const appUrl = process.env.FRONTEND_URL || "https://teams.microsoft.com";
-  const teamsUrl = buildTeamsDeepLink() || appUrl;
+  const teamsUrl = buildTeamsDeepLink() ||
+    process.env.FRONTEND_URL ||
+    "https://teams.microsoft.com";
 
-  const card = {
-    type: "AdaptiveCard",
-    $schema: "http://adaptivecards.io/schemas/adaptive-card.json",
-    version: "1.5",
-    body: [
-      {
-        type: "TextBlock",
-        text: "📋 Yeni İzin Talebi",
-        weight: "Bolder",
-        size: "Large",
-        color: "Accent",
-      },
-      {
-        type: "TextBlock",
-        text: `${request.requesterName} sizden onay bekliyor.`,
-        wrap: true,
-      },
-      {
-        type: "FactSet",
-        facts: [
-          { title: "İzin Türü", value: izinTuruLabel(request.leaveType) },
-          { title: "Tarih", value: formatRequestDateRange(request) },
-          { title: "Süre", value: request.leaveType === "saatlik"
-              ? `${request.totalDays} iş günü karşılığı (saatlik)`
-              : `${request.totalDays} iş günü` },
-          ...(request.description ? [{ title: "Açıklama", value: request.description }] : []),
-        ],
-      },
-    ],
-    actions: [
-      {
-        type: "Action.OpenUrl",
-        title: "🔍 Talebi İncele ve Onayla",
-        url: teamsUrl,
-        style: "positive",
-      },
+  const previewText = request.leaveType === "saatlik"
+    ? `${formatRequestDateRange(request)} saatlik izin onayı bekliyor`
+    : `${formatRequestDateRange(request)} izin onayı bekliyor`;
+
+  const payload = {
+    topic: {
+      source: "text",
+      value: "Yeni izin talebi",
+      webUrl: teamsUrl,
+    },
+    activityType: "leaveRequestApproval",
+    previewText: { content: previewText },
+    templateParameters: [
+      { name: "actor", value: request.requesterName || "Bir çalışan" },
     ],
   };
 
-  console.log(`[TEAMS] chat oluşturuluyor: requester=${request.requesterId} approver=${approverId}`);
-
-  let chat;
-  try {
-    // 1) Talepçi ↔ Onaylayıcı arasında 1-1 chat oluştur (varsa Graph aynısını döner)
-    chat = await client
-      .api("/chats")
-      .post({
-        chatType: "oneOnOne",
-        members: [
-          {
-            "@odata.type": "#microsoft.graph.aadUserConversationMember",
-            roles: ["owner"],
-            "user@odata.bind": `https://graph.microsoft.com/v1.0/users/${request.requesterId}`,
-          },
-          {
-            "@odata.type": "#microsoft.graph.aadUserConversationMember",
-            roles: ["owner"],
-            "user@odata.bind": `https://graph.microsoft.com/v1.0/users/${approverId}`,
-          },
-        ],
-      });
-
-    if (!chat?.id) throw new Error("Chat ID alınamadı.");
-    console.log(`[TEAMS] chat OK: ${chat.id}`);
-  } catch (err) {
-    console.error(`[TEAMS] chat oluşturma BAŞARISIZ:`, {
-      message: err.message,
-      statusCode: err.statusCode,
-      code: err.code,
-      body: typeof err.body === "string" ? err.body : JSON.stringify(err.body),
-    });
-    return;
-  }
+  console.log(`[TEAMS] activity feed bildirimi: user=${approverId}`);
 
   try {
-    // 2) Adaptive Card mesajı gönder
     await client
-      .api(`/chats/${chat.id}/messages`)
-      .post({
-        body: {
-          contentType: "html",
-          content: '<attachment id="leaveCard"></attachment>',
-        },
-        attachments: [
-          {
-            id: "leaveCard",
-            contentType: "application/vnd.microsoft.card.adaptive",
-            content: JSON.stringify(card),
-          },
-        ],
-      });
-
-    console.log(`[TEAMS] mesaj BAŞARILI: ${approverId}`);
+      .api(`/users/${approverId}/teamwork/sendActivityNotification`)
+      .post(payload);
+    console.log(`[TEAMS] BAŞARILI: ${approverId}`);
   } catch (err) {
-    console.error(`[TEAMS] mesaj gönderme BAŞARISIZ:`, {
+    console.error(`[TEAMS] BAŞARISIZ:`, {
       message: err.message,
       statusCode: err.statusCode,
       code: err.code,
