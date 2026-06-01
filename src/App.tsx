@@ -37,6 +37,18 @@ import type { OrgUser } from "./types";
 
 const msalInstance = new PublicClientApplication(msalConfig);
 
+// JWT payload'ı imzayı doğrulamadan decode et — sadece UI'da kullanıcı bilgisi göstermek için
+function decodeJwt(token: string): Record<string, any> | null {
+  try {
+    const payload = token.split(".")[1];
+    if (!payload) return null;
+    const decoded = atob(payload.replace(/-/g, "+").replace(/_/g, "/"));
+    return JSON.parse(decodeURIComponent(escape(decoded)));
+  } catch {
+    return null;
+  }
+}
+
 // ─── Fluent tema seçici ──────────────────────────────────────────────────────
 function getTheme(teamsTheme: string) {
   if (teamsTheme === "dark" || teamsTheme === "contrast") {
@@ -153,23 +165,44 @@ function AppContent() {
 
         setToken(accessToken);
 
-        const meRes = await fetch("https://graph.microsoft.com/v1.0/me", {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        });
-        const me = await meRes.json();
-        const user: OrgUser = {
-          id: me.id,
-          displayName: me.displayName,
-          mail: me.mail || me.userPrincipalName,
-          jobTitle: me.jobTitle,
-          department: me.department,
-        };
+        // Kullanıcı bilgisini al:
+        //  - Teams SSO token'ı Graph audience değil, Graph /me 401 döner
+        //  - Bu durumda Teams context + JWT decode ile kullanıcıyı kur
+        //  - MSAL flow'unda token zaten Graph audience, /me çağrısı çalışır
+        let user: OrgUser;
+        const usingTeamsSso = !!teamsCtx.teamsToken;
+
+        if (usingTeamsSso) {
+          const claims = decodeJwt(accessToken);
+          user = {
+            id: teamsCtx.userObjectId || claims?.oid || "",
+            displayName: claims?.name || teamsCtx.userPrincipalName || "Kullanıcı",
+            mail: teamsCtx.userPrincipalName || claims?.preferred_username || claims?.upn || "",
+          };
+        } else {
+          const meRes = await fetch("https://graph.microsoft.com/v1.0/me", {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          });
+          if (!meRes.ok) {
+            console.error("Graph /me hatası:", meRes.status);
+            setIsInitializing(false);
+            return;
+          }
+          const me = await meRes.json();
+          user = {
+            id: me.id,
+            displayName: me.displayName,
+            mail: me.mail || me.userPrincipalName,
+            jobTitle: me.jobTitle,
+            department: me.department,
+          };
+        }
         setCurrentUser(user);
 
         try {
           const hierarchy = await getHierarchy(accessToken);
-          const myNode = hierarchy.find((n) => n.id === me.id);
-          const directReports = hierarchy.filter((n) => n.managerId === me.id);
+          const myNode = hierarchy.find((n) => n.id === user.id);
+          const directReports = hierarchy.filter((n) => n.managerId === user.id);
           const treeAdmin = !!myNode?.isTreeAdmin;
           const hasReports = directReports.length > 0;
           const root = !!myNode && !myNode.managerId;
