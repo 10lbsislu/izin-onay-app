@@ -28,8 +28,7 @@ export type Approver = HierarchyNode;
 // ─── İzin Talebi ─────────────────────────────────────────────────────────────
 export type LeaveType =
   | "yillik"
-  | "hastalik"
-  | "mazeret"
+  | "saatlik"
   | "ucretsiz"
   | "diger";
 
@@ -43,7 +42,9 @@ export interface LeaveRequest {
   leaveType: LeaveType;
   startDate: string;       // ISO date string YYYY-MM-DD
   endDate: string;         // ISO date string YYYY-MM-DD
-  totalDays: number;
+  startTime?: string;      // HH:MM (yalnız saatlik izinde)
+  endTime?: string;        // HH:MM (yalnız saatlik izinde)
+  totalDays: number;       // saatlik için kesirli olabilir (saat/8)
   description: string;
   status: LeaveStatus;
   approverId?: string;
@@ -75,8 +76,7 @@ export interface AppContextType {
 // ─── İzin Türü Etiketi ────────────────────────────────────────────────────────
 export const LEAVE_TYPE_LABELS: Record<LeaveType, string> = {
   yillik: "Yıllık İzin",
-  hastalik: "Hastalık İzni",
-  mazeret: "Mazeret İzni",
+  saatlik: "Saatlik İzin",
   ucretsiz: "Ücretsiz İzin",
   diger: "Diğer",
 };

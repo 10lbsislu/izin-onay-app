@@ -158,8 +158,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser, token, isTr
           </div>
 
           <Text size={300} weight="semibold">
-            📅 {new Date(req.startDate).toLocaleDateString("tr-TR")} —{" "}
-            {new Date(req.endDate).toLocaleDateString("tr-TR")}
+            📅 {new Date(req.startDate).toLocaleDateString("tr-TR")}
+            {req.leaveType === "saatlik" && req.startTime && req.endTime
+              ? ` (${req.startTime}–${req.endTime})`
+              : ` — ${new Date(req.endDate).toLocaleDateString("tr-TR")}`}
           </Text>
 
           {req.description && (
@@ -247,9 +249,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser, token, isTr
                   talebini {dialogAction === "approve" ? "onaylıyorsunuz" : "reddediyorsunuz"}.
                 </Text>
                 <Text size={200} style={{ color: "var(--colorNeutralForeground3)" }}>
-                  {new Date(selectedRequest.startDate).toLocaleDateString("tr-TR")} —{" "}
-                  {new Date(selectedRequest.endDate).toLocaleDateString("tr-TR")}{" "}
-                  ({selectedRequest.totalDays} iş günü)
+                  {new Date(selectedRequest.startDate).toLocaleDateString("tr-TR")}
+                  {selectedRequest.leaveType === "saatlik" && selectedRequest.startTime && selectedRequest.endTime
+                    ? ` (${selectedRequest.startTime}–${selectedRequest.endTime})`
+                    : ` — ${new Date(selectedRequest.endDate).toLocaleDateString("tr-TR")}`}
+                  {" "}({selectedRequest.totalDays} iş günü)
                 </Text>
                 <Field label={dialogAction === "reject" ? "Red Gerekçesi (zorunlu)" : "Yorum (opsiyonel)"}>
                   <Textarea
@@ -375,8 +379,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser, token, isTr
                       </TableCell>
                       <TableCell>
                         <Text size={200}>
-                          {new Date(req.startDate).toLocaleDateString("tr-TR")} —{" "}
-                          {new Date(req.endDate).toLocaleDateString("tr-TR")}
+                          {new Date(req.startDate).toLocaleDateString("tr-TR")}
+                          {req.leaveType === "saatlik" && req.startTime && req.endTime
+                            ? ` ${req.startTime}–${req.endTime}`
+                            : ` — ${new Date(req.endDate).toLocaleDateString("tr-TR")}`}
                         </Text>
                       </TableCell>
                       <TableCell><Text size={200}>{req.totalDays}</Text></TableCell>

@@ -85,6 +85,10 @@ export const RequestForm: React.FC<RequestFormProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [approverChoices, setApproverChoices] = useState<HierarchyNode[]>([]);
   const [pickedApproverId, setPickedApproverId] = useState("");
+  const [startTime, setStartTime] = useState("09:00");
+  const [endTime, setEndTime] = useState("18:00");
+
+  const isHourly = leaveType === "saatlik";
 
   // Root kullanıcı: hiyerarşiden olası onaylayıcıları yükle
   useEffect(() => {
@@ -98,6 +102,14 @@ export const RequestForm: React.FC<RequestFormProps> = ({
   }, [isRoot, token, currentUser.id]);
 
   const calcDays = (): number => {
+    if (isHourly) {
+      if (!startTime || !endTime) return 0;
+      const [sh, sm] = startTime.split(":").map(Number);
+      const [eh, em] = endTime.split(":").map(Number);
+      const hours = (eh + em / 60) - (sh + sm / 60);
+      if (hours <= 0) return 0;
+      return Math.round((hours / 8) * 100) / 100; // 2 ondalık
+    }
     if (!startDate || !endDate) return 0;
     const start = new Date(startDate);
     const end = new Date(endDate);
@@ -113,38 +125,57 @@ export const RequestForm: React.FC<RequestFormProps> = ({
   };
 
   const totalDays = calcDays();
+  const hourlyHours = isHourly && startTime && endTime
+    ? Math.max(0, (Number(endTime.split(":")[0]) + Number(endTime.split(":")[1]) / 60)
+                  - (Number(startTime.split(":")[0]) + Number(startTime.split(":")[1]) / 60))
+    : 0;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!startDate || !endDate) {
+    if (!startDate) {
       dispatchToast(
-        <Toast>
-          <ToastTitle>Eksik Alan</ToastTitle>
-          <ToastBody>Başlangıç ve bitiş tarihlerini doldurunuz.</ToastBody>
-        </Toast>,
+        <Toast><ToastTitle>Eksik Alan</ToastTitle><ToastBody>Tarih seçiniz.</ToastBody></Toast>,
         { intent: "error" }
       );
       return;
     }
-    if (new Date(endDate) < new Date(startDate)) {
-      dispatchToast(
-        <Toast>
-          <ToastTitle>Tarih Hatası</ToastTitle>
-          <ToastBody>Bitiş tarihi başlangıçtan önce olamaz.</ToastBody>
-        </Toast>,
-        { intent: "error" }
-      );
-      return;
-    }
-    if (totalDays === 0) {
-      dispatchToast(
-        <Toast>
-          <ToastTitle>Geçersiz Tarih</ToastTitle>
-          <ToastBody>Seçilen tarihlerde iş günü bulunmuyor.</ToastBody>
-        </Toast>,
-        { intent: "error" }
-      );
-      return;
+    if (isHourly) {
+      if (!startTime || !endTime) {
+        dispatchToast(
+          <Toast><ToastTitle>Eksik Alan</ToastTitle><ToastBody>Saat başlangıç ve bitiş giriniz.</ToastBody></Toast>,
+          { intent: "error" }
+        );
+        return;
+      }
+      if (totalDays === 0) {
+        dispatchToast(
+          <Toast><ToastTitle>Geçersiz Saat</ToastTitle><ToastBody>Bitiş saati başlangıçtan büyük olmalı.</ToastBody></Toast>,
+          { intent: "error" }
+        );
+        return;
+      }
+    } else {
+      if (!endDate) {
+        dispatchToast(
+          <Toast><ToastTitle>Eksik Alan</ToastTitle><ToastBody>Bitiş tarihini giriniz.</ToastBody></Toast>,
+          { intent: "error" }
+        );
+        return;
+      }
+      if (new Date(endDate) < new Date(startDate)) {
+        dispatchToast(
+          <Toast><ToastTitle>Tarih Hatası</ToastTitle><ToastBody>Bitiş tarihi başlangıçtan önce olamaz.</ToastBody></Toast>,
+          { intent: "error" }
+        );
+        return;
+      }
+      if (totalDays === 0) {
+        dispatchToast(
+          <Toast><ToastTitle>Geçersiz Tarih</ToastTitle><ToastBody>Seçilen tarihlerde iş günü bulunmuyor.</ToastBody></Toast>,
+          { intent: "error" }
+        );
+        return;
+      }
     }
     if (isRoot && !pickedApproverId) {
       dispatchToast(
@@ -165,9 +196,10 @@ export const RequestForm: React.FC<RequestFormProps> = ({
         requesterEmail: currentUser.mail,
         leaveType,
         startDate,
-        endDate,
+        endDate: isHourly ? startDate : endDate,
         totalDays,
         description,
+        ...(isHourly ? { startTime, endTime } : {}),
         ...(isRoot ? { approverId: pickedApproverId } : {}),
       });
 
@@ -235,34 +267,67 @@ export const RequestForm: React.FC<RequestFormProps> = ({
           </Field>
 
           {/* Tarih Aralığı */}
-          <div className={styles.row}>
-            <Field label="Başlangıç Tarihi" required>
-              <Input
-                type="date"
-                value={startDate}
-                onChange={(_, d) => setStartDate(d.value)}
-                min={new Date().toISOString().split("T")[0]}
-                contentBefore={<CalendarLtrRegular />}
-              />
-            </Field>
-            <Field label="Bitiş Tarihi" required>
-              <Input
-                type="date"
-                value={endDate}
-                onChange={(_, d) => setEndDate(d.value)}
-                min={startDate || new Date().toISOString().split("T")[0]}
-                contentBefore={<CalendarLtrRegular />}
-              />
-            </Field>
-          </div>
+          {isHourly ? (
+            <>
+              <Field label="Tarih" required>
+                <Input
+                  type="date"
+                  value={startDate}
+                  onChange={(_, d) => setStartDate(d.value)}
+                  min={new Date().toISOString().split("T")[0]}
+                  contentBefore={<CalendarLtrRegular />}
+                />
+              </Field>
+              <div className={styles.row}>
+                <Field label="Saat Başlangıç" required>
+                  <Input
+                    type="time"
+                    value={startTime}
+                    onChange={(_, d) => setStartTime(d.value)}
+                  />
+                </Field>
+                <Field label="Saat Bitiş" required>
+                  <Input
+                    type="time"
+                    value={endTime}
+                    onChange={(_, d) => setEndTime(d.value)}
+                  />
+                </Field>
+              </div>
+            </>
+          ) : (
+            <div className={styles.row}>
+              <Field label="Başlangıç Tarihi" required>
+                <Input
+                  type="date"
+                  value={startDate}
+                  onChange={(_, d) => setStartDate(d.value)}
+                  min={new Date().toISOString().split("T")[0]}
+                  contentBefore={<CalendarLtrRegular />}
+                />
+              </Field>
+              <Field label="Bitiş Tarihi" required>
+                <Input
+                  type="date"
+                  value={endDate}
+                  onChange={(_, d) => setEndDate(d.value)}
+                  min={startDate || new Date().toISOString().split("T")[0]}
+                  contentBefore={<CalendarLtrRegular />}
+                />
+              </Field>
+            </div>
+          )}
 
-          {/* Hesaplanan gün */}
+          {/* Hesaplanan gün/saat */}
           {totalDays > 0 && (
             <div className={styles.dateInfo}>
               <CalendarLtrRegular />
               <Text size={200}>
-                Toplam{" "}
-                <strong>{totalDays} iş günü</strong> izin talebi
+                {isHourly ? (
+                  <>Toplam <strong>{hourlyHours.toFixed(2)} saat</strong> ({totalDays} iş günü karşılığı)</>
+                ) : (
+                  <>Toplam <strong>{totalDays} iş günü</strong> izin talebi</>
+                )}
               </Text>
               <Badge appearance="outline" color="brand">
                 {LEAVE_TYPE_LABELS[leaveType]}

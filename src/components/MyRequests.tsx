@@ -165,8 +165,11 @@ export const MyRequests: React.FC<MyRequestsProps> = ({
             {/* Tarihler */}
             <Text size={300} weight="semibold">
               {new Date(req.startDate).toLocaleDateString("tr-TR")}
-              {req.startDate !== req.endDate &&
-                ` — ${new Date(req.endDate).toLocaleDateString("tr-TR")}`}
+              {req.leaveType === "saatlik" && req.startTime && req.endTime
+                ? ` (${req.startTime}–${req.endTime})`
+                : req.startDate !== req.endDate
+                ? ` — ${new Date(req.endDate).toLocaleDateString("tr-TR")}`
+                : ""}
             </Text>
 
             {/* Açıklama */}

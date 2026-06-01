@@ -20,6 +20,7 @@ const REQUEST_COLS = [
   "leaveType", "startDate", "endDate", "totalDays",
   "description", "status", "approverId", "approverName",
   "approverComment", "createdAt", "updatedAt",
+  "startTime", "endTime",
 ];
 
 const APPROVER_COLS = ["id", "displayName", "mail", "managerId", "isTreeAdmin", "addedAt"];

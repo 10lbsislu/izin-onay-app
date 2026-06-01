@@ -112,6 +112,8 @@ app.http("createRequest", {
         leaveType:      body.leaveType,
         startDate:      body.startDate,
         endDate:        body.endDate,
+        startTime:      body.startTime || "",
+        endTime:        body.endTime || "",
         totalDays:      Number(body.totalDays),
         description:    body.description || "",
         status:         "beklemede",
