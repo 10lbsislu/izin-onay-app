@@ -8,7 +8,7 @@
  */
 
 const { app } = require("@azure/functions");
-const { updateRequest: updateInExcel, getAllRequests } = require("../shared/excelService");
+const { updateRequest: updateInExcel, getAllRequests, isTreeAdmin } = require("../shared/excelService");
 const { notifyUser } = require("../shared/notifyService");
 const { extractCaller } = require("../shared/authMiddleware");
 
@@ -71,14 +71,23 @@ app.http("updateRequest", {
         };
       }
 
-      // ── Hiyerarşik yetki: sadece atanmış amir onaylayabilir ───────────
-      if (targetRequest.approverId !== caller.userId) {
+      // ── Hiyerarşik yetki: atanmış amir veya (yetim talepler için) tree admin ──
+      const isAssignedApprover = targetRequest.approverId === caller.userId;
+      const isOrphan = !targetRequest.approverId;
+      let isFallbackAdmin = false;
+      if (!isAssignedApprover && isOrphan) {
+        // Eski/yetim talep: tree admin müdahale edebilir
+        isFallbackAdmin = await isTreeAdmin(caller.userId);
+      }
+
+      if (!isAssignedApprover && !isFallbackAdmin) {
+        const detail = isOrphan
+          ? "Bu talebin atanmış amiri yok (büyük olasılıkla eski bir kayıt). Yalnızca tree admin temizleyebilir."
+          : `Bu talebi yalnızca atanmış amir onaylayabilir${targetRequest.approverName ? ` (${targetRequest.approverName})` : ""}.`;
         return {
           status: 403,
           headers,
-          body: JSON.stringify({
-            error: "Bu talebi yalnızca atanmış amir onaylayabilir.",
-          }),
+          body: JSON.stringify({ error: detail }),
         };
       }
 
@@ -104,7 +113,14 @@ app.http("updateRequest", {
       }
 
       // ── Excel güncelle (approverId/Name createRequest'te yazıldı, değişmez) ──
+      // Tree admin yetim talebi onaylıyorsa approverId'yi kendisine yaz (audit için)
+      const adminFallbackPatch = isFallbackAdmin ? {
+        approverId: caller.userId,
+        approverName: caller.name || "",
+      } : {};
+
       const updatedRequest = await updateInExcel(id, {
+        ...adminFallbackPatch,
         status,
         approverComment: approverComment || "",
         updatedAt:       new Date().toISOString(),
