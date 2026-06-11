@@ -6,3 +6,4 @@ require("./searchUsers");
 require("./getApprovers");
 require("./manageApprovers");
 require("./getApprovedLeaves");
+require("./remindPending");

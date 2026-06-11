@@ -216,15 +216,22 @@ function buildTeamsDeepLink() {
   return `https://teams.microsoft.com/l/entity/${appId}/${entityId}`;
 }
 
-async function notifyApproverByEmail(request, approverEmail) {
+async function notifyApproverByEmail(request, approverEmail, opts = {}) {
   if (!approverEmail) {
     console.warn("notifyApproverByEmail: onaylayıcı maili yok, atlandı.");
     return;
   }
+  const reminder = !!opts.reminder;
   const client = getAppGraphClient();
   const webUrl = process.env.FRONTEND_URL || "https://teams.microsoft.com";
   const teamsUrl = buildTeamsDeepLink();
-  const subject = `İzin Talebi — ${request.requesterName}`;
+  const subject = reminder
+    ? `⏰ Hatırlatma: Bekleyen İzin Talebi — ${request.requesterName}`
+    : `İzin Talebi — ${request.requesterName}`;
+  const heading = reminder ? "⏰ Hatırlatma — Onayınızı Bekleyen İzin Talebi" : "📋 Yeni İzin Talebi";
+  const introLine = reminder
+    ? `<strong>${request.requesterName}</strong> adlı çalışanın izin talebi <strong>6 saattir</strong> onayınızı bekliyor. Lütfen değerlendirin.`
+    : `<strong>${request.requesterName}</strong> adlı çalışan size bir izin talebi gönderdi.`;
   const dateLine = formatRequestDateRange(request);
   const sureLine = request.leaveType === "saatlik"
     ? `${request.totalDays} iş günü karşılığı (saatlik)`
@@ -255,8 +262,8 @@ async function notifyApproverByEmail(request, approverEmail) {
 
   const html = `
     <div style="font-family: Segoe UI, Arial, sans-serif; max-width: 560px;">
-      <h2 style="color:#0078d4; margin-bottom: 8px;">📋 Yeni İzin Talebi</h2>
-      <p><strong>${request.requesterName}</strong> adlı çalışan size bir izin talebi gönderdi.</p>
+      <h2 style="color:${reminder ? "#c19c00" : "#0078d4"}; margin-bottom: 8px;">${heading}</h2>
+      <p>${introLine}</p>
       <table style="border-collapse: collapse; margin: 12px 0;">
         <tr><td style="padding:4px 12px 4px 0;"><b>İzin Türü:</b></td><td>${izinTuruLabel(request.leaveType)}</td></tr>
         <tr><td style="padding:4px 12px 4px 0;"><b>Tarih:</b></td><td>${dateLine}</td></tr>
