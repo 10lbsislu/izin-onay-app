@@ -5,3 +5,4 @@ require("./updateRequest");
 require("./searchUsers");
 require("./getApprovers");
 require("./manageApprovers");
+require("./getApprovedLeaves");

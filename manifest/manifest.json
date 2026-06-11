@@ -46,6 +46,11 @@
         "type": "leaveRequestApproval",
         "description": "Yeni izin talebi onayı bekliyor",
         "templateText": "{actor} sizden izin talebi onayı bekliyor"
+      },
+      {
+        "type": "leaveApproved",
+        "description": "Bir izin onaylandı",
+        "templateText": "{actor} için izin onaylandı"
       }
     ]
   }

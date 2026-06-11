@@ -87,6 +87,26 @@ export async function updateRequestStatus(
   return res.request;
 }
 
+// ─── Onaylanan İzinler (yetkili görüntüleyiciler) ─────────────────────────────
+
+export interface ApprovedLeavesResponse {
+  requests: LeaveRequest[];
+  meta: {
+    callerId: string;
+    total: number;
+  };
+}
+
+/** Tüm onaylanan izinleri döndürür — sadece isApprovalViewer / tree admin çağırabilir */
+export async function getApprovedLeaves(token: string): Promise<LeaveRequest[]> {
+  const res = await apiFetch<ApprovedLeavesResponse>(
+    "/getApprovedLeaves",
+    { method: "GET" },
+    token
+  );
+  return res.requests;
+}
+
 // ─── Hiyerarşi ────────────────────────────────────────────────────────────────
 
 export async function getHierarchy(token: string): Promise<HierarchyNode[]> {
@@ -126,6 +146,24 @@ export async function removeHierarchyNode(token: string, userId: string): Promis
     { method: "POST", body: JSON.stringify({ action: "remove", userId }) },
     token
   );
+}
+
+export async function grantApprovalViewer(token: string, userId: string): Promise<HierarchyNode> {
+  const res = await apiFetch<{ node: HierarchyNode }>(
+    "/manageApprovers",
+    { method: "POST", body: JSON.stringify({ action: "grant-viewer", userId }) },
+    token
+  );
+  return res.node;
+}
+
+export async function revokeApprovalViewer(token: string, userId: string): Promise<HierarchyNode> {
+  const res = await apiFetch<{ node: HierarchyNode }>(
+    "/manageApprovers",
+    { method: "POST", body: JSON.stringify({ action: "revoke-viewer", userId }) },
+    token
+  );
+  return res.node;
 }
 
 export async function grantTreeAdmin(token: string, userId: string): Promise<HierarchyNode> {

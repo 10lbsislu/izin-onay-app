@@ -347,4 +347,89 @@ async function notifyApproverInTeams(request, approverId) {
   }
 }
 
-module.exports = { notifyChannel, notifyUser, notifyApproverByEmail, notifyApproverInTeams };
+// ─── Onaylanan İzin Görüntüleyicilere Bildirim ───────────────────────────────
+
+/**
+ * Bir izin onaylandığında, "onaylanan izin görüntüleyici" yetkisine sahip
+ * kişilere "X'in izni Y tarafından onaylandı" bildirimi gönderir.
+ *
+ * @param {object} request   - Onaylanmış talep (status=onaylandi, approverName dolu)
+ * @param {Array}  viewers   - [{ id, displayName, mail }] görüntüleyici listesi
+ * @param {string} fromEmail - Gönderen kutusu (onaylayanın e-postası)
+ */
+async function notifyApprovalViewers(request, viewers, fromEmail) {
+  if (!Array.isArray(viewers) || viewers.length === 0) return;
+
+  const client = getAppGraphClient();
+  const dateLine = formatRequestDateRange(request);
+  const sureLine = request.leaveType === "saatlik"
+    ? `${request.totalDays} iş günü karşılığı (saatlik)`
+    : `${request.totalDays} iş günü`;
+  const approverName = request.approverName || "Yöneticisi";
+  const subject = `Onaylanan İzin — ${request.requesterName}`;
+
+  const html = `
+    <div style="font-family: Segoe UI, Arial, sans-serif; max-width: 560px;">
+      <h2 style="color:#107c10; margin-bottom: 8px;">✅ İzin Onaylandı</h2>
+      <p><strong>${request.requesterName}</strong> adlı çalışanın izni
+         <strong>${approverName}</strong> tarafından onaylandı.</p>
+      <table style="border-collapse: collapse; margin: 12px 0;">
+        <tr><td style="padding:4px 12px 4px 0;"><b>Çalışan:</b></td><td>${request.requesterName}</td></tr>
+        <tr><td style="padding:4px 12px 4px 0;"><b>İzin Türü:</b></td><td>${izinTuruLabel(request.leaveType)}</td></tr>
+        <tr><td style="padding:4px 12px 4px 0;"><b>Tarih:</b></td><td>${dateLine}</td></tr>
+        <tr><td style="padding:4px 12px 4px 0;"><b>Süre:</b></td><td>${sureLine}</td></tr>
+        <tr><td style="padding:4px 12px 4px 0;"><b>Onaylayan:</b></td><td>${approverName}</td></tr>
+      </table>
+      <p style="color:#888; font-size:12px; margin-top:24px;">
+        Bu bilgilendirme İzin Onay Sistemi tarafından otomatik gönderildi.
+      </p>
+    </div>
+  `;
+
+  const sender = fromEmail || request.requesterEmail || request.requesterId;
+
+  for (const viewer of viewers) {
+    // Kendi onayladığı/açtığı talebi tekrar kendine bildirme
+    if (viewer.id === request.approverId || viewer.id === request.requesterId) continue;
+    if (!viewer.mail) continue;
+
+    try {
+      await client
+        .api(`/users/${sender}/sendMail`)
+        .post({
+          message: {
+            subject,
+            body: { contentType: "HTML", content: html },
+            toRecipients: [{ emailAddress: { address: viewer.mail } }],
+          },
+          saveToSentItems: false,
+        });
+      console.log(`[VIEWER MAIL] BAŞARILI: ${viewer.mail}`);
+    } catch (err) {
+      console.error(`[VIEWER MAIL] BAŞARISIZ to=${viewer.mail}:`, err.message);
+    }
+
+    // Teams activity feed (opsiyonel — yetki/manifest varsa)
+    try {
+      await client
+        .api(`/users/${viewer.id}/teamwork/sendActivityNotification`)
+        .post({
+          topic: {
+            source: "text",
+            value: "Onaylanan izin",
+            webUrl: buildTeamsDeepLink() || process.env.FRONTEND_URL || "https://teams.microsoft.com",
+          },
+          activityType: "leaveApproved",
+          previewText: { content: `${request.requesterName} için izin onaylandı` },
+          templateParameters: [
+            { name: "actor", value: request.requesterName || "Bir çalışan" },
+          ],
+        });
+      console.log(`[VIEWER TEAMS] BAŞARILI: ${viewer.id}`);
+    } catch (err) {
+      console.error(`[VIEWER TEAMS] BAŞARISIZ user=${viewer.id}:`, err.message);
+    }
+  }
+}
+
+module.exports = { notifyChannel, notifyUser, notifyApproverByEmail, notifyApproverInTeams, notifyApprovalViewers };

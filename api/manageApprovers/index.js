@@ -20,6 +20,7 @@ const {
   removeHierarchyNode,
   isTreeAdmin,
   countTreeAdmins,
+  setApprovalViewer,
 } = require("../shared/excelService");
 
 app.http("manageApprovers", {
@@ -46,6 +47,7 @@ app.http("manageApprovers", {
         const normalized = nodes.map((n) => ({
           ...n,
           isTreeAdmin: String(n.isTreeAdmin).toLowerCase() === "true",
+          isApprovalViewer: String(n.isApprovalViewer).toLowerCase() === "true",
           managerId: n.managerId || "",
         }));
         return { status: 200, headers, body: JSON.stringify({ nodes: normalized }) };
@@ -103,6 +105,28 @@ app.http("manageApprovers", {
           return { status: 400, headers, body: JSON.stringify({ error: "Son tree admin'i kaldıramazsınız." }) };
         }
         const node = await setTreeAdmin(userId, false);
+        return { status: 200, headers, body: JSON.stringify({ node }) };
+      }
+
+      if (action === "grant-viewer") {
+        const { userId } = body;
+        if (!userId) {
+          return { status: 400, headers, body: JSON.stringify({ error: "userId zorunludur." }) };
+        }
+        const target = await getHierarchyNode(userId);
+        if (!target) {
+          return { status: 404, headers, body: JSON.stringify({ error: "Kullanıcı hiyerarşide yok." }) };
+        }
+        const node = await setApprovalViewer(userId, true);
+        return { status: 200, headers, body: JSON.stringify({ node }) };
+      }
+
+      if (action === "revoke-viewer") {
+        const { userId } = body;
+        if (!userId) {
+          return { status: 400, headers, body: JSON.stringify({ error: "userId zorunludur." }) };
+        }
+        const node = await setApprovalViewer(userId, false);
         return { status: 200, headers, body: JSON.stringify({ node }) };
       }
 

@@ -23,7 +23,7 @@ const REQUEST_COLS = [
   "startTime", "endTime",
 ];
 
-const APPROVER_COLS = ["id", "displayName", "mail", "managerId", "isTreeAdmin", "addedAt"];
+const APPROVER_COLS = ["id", "displayName", "mail", "managerId", "isTreeAdmin", "addedAt", "isApprovalViewer"];
 
 function excelDateToISO(value) {
   if (!value) return "";
@@ -256,6 +256,32 @@ async function countTreeAdmins() {
   return all.filter((n) => String(n.isTreeAdmin).toLowerCase() === "true").length;
 }
 
+// ─── Onaylanan İzin Görüntüleyiciler ─────────────────────────────────────────
+// isApprovalViewer = "true" olan hiyerarşi düğümleri tüm onaylanan izinleri görebilir.
+
+async function getApprovalViewers() {
+  const all = await getAllApprovers();
+  return all.filter((n) => String(n.isApprovalViewer).toLowerCase() === "true");
+}
+
+async function isApprovalViewer(userId) {
+  const node = await getHierarchyNode(userId);
+  return !!node && String(node.isApprovalViewer).toLowerCase() === "true";
+}
+
+async function setApprovalViewer(userId, value) {
+  const client = getAppGraphClient();
+  const { rows, index } = await _findRowIndex(userId);
+  if (index === -1) throw new Error(`Kullanıcı hiyerarşide yok: ${userId}`);
+  const current = rowToApprover(rows[index].values[0]);
+  const updated = { ...current, isApprovalViewer: value ? "true" : "" };
+  const row = APPROVER_COLS.map((col) => updated[col] ?? "");
+  await client
+    .api(`${workbookBase()}/tables/OnaylayicilarTablosu/rows/itemAt(index=${index})`)
+    .patch({ values: [row] });
+  return updated;
+}
+
 module.exports = {
   getAllRequests,
   getRequestsByUser,
@@ -271,4 +297,7 @@ module.exports = {
   setTreeAdmin,
   removeHierarchyNode,
   countTreeAdmins,
+  getApprovalViewers,
+  isApprovalViewer,
+  setApprovalViewer,
 };

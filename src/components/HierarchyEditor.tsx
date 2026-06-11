@@ -14,11 +14,13 @@ import {
   PersonAddRegular, DeleteRegular, ArrowMoveRegular,
   ShieldCheckmarkRegular, ShieldDismissRegular, ArrowClockwiseRegular,
   ChevronDownRegular, ChevronRightRegular,
+  EyeRegular, EyeOffRegular,
 } from "@fluentui/react-icons";
 import type { HierarchyNode, TreeNode, OrgUser } from "../types";
 import {
   getHierarchy, setUserManager, removeHierarchyNode,
   grantTreeAdmin, revokeTreeAdmin, buildTree, getDescendantIds,
+  grantApprovalViewer, revokeApprovalViewer,
 } from "../services/requestService";
 import { UserPicker } from "./UserPicker";
 
@@ -178,6 +180,22 @@ export const HierarchyEditor: React.FC<HierarchyEditorProps> = ({ token, current
     }
   };
 
+  // ── Onaylanan izin görüntüleyici yetkisi ──────────────────────────────────
+  const handleToggleViewer = async (node: HierarchyNode) => {
+    try {
+      if (node.isApprovalViewer) {
+        await revokeApprovalViewer(token, node.id);
+        toast("Yetki Kaldırıldı", `${node.displayName} artık onaylanan izinleri göremez.`, "warning");
+      } else {
+        await grantApprovalViewer(token, node.id);
+        toast("Yetki Verildi", `${node.displayName} tüm onaylanan izinleri görebilir.`);
+      }
+      load();
+    } catch (err) {
+      toast("Hata", String(err), "error");
+    }
+  };
+
   // ── Collapse/expand ───────────────────────────────────────────────────────
   const toggleCollapse = (id: string) => {
     setCollapsed((prev) => {
@@ -212,6 +230,11 @@ export const HierarchyEditor: React.FC<HierarchyEditorProps> = ({ token, current
               {node.isTreeAdmin && (
                 <Badge appearance="filled" color="brand" size="small">Admin</Badge>
               )}
+              {node.isApprovalViewer && (
+                <Badge appearance="filled" color="success" size="small" icon={<EyeRegular />}>
+                  Onaylı İzin Görür
+                </Badge>
+              )}
               {depth === 0 && (
                 <Badge appearance="outline" size="small">Root</Badge>
               )}
@@ -245,6 +268,15 @@ export const HierarchyEditor: React.FC<HierarchyEditorProps> = ({ token, current
               appearance="subtle"
               onClick={() => handleToggleAdmin(node)}
               title={node.isTreeAdmin ? "Admin yetkisini kaldır" : "Admin yap"}
+            />
+            <Button
+              size="small"
+              icon={node.isApprovalViewer ? <EyeOffRegular /> : <EyeRegular />}
+              appearance="subtle"
+              onClick={() => handleToggleViewer(node)}
+              title={node.isApprovalViewer
+                ? "Onaylanan izin görme yetkisini kaldır"
+                : "Tüm onaylanan izinleri görme yetkisi ver"}
             />
             <Button
               size="small"

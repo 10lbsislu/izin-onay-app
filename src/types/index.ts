@@ -15,6 +15,7 @@ export interface HierarchyNode {
   mail: string;
   managerId: string;     // "" = root
   isTreeAdmin: boolean;
+  isApprovalViewer?: boolean;  // Tüm onaylanan izinleri görebilir
   addedAt: string;
 }
 
@@ -68,6 +69,7 @@ export interface AppContextType {
   currentUser: OrgUser | null;
   isAdmin: boolean;
   isTreeAdmin: boolean;
+  isApprovalViewer: boolean;
   hasDirectReports: boolean;
   isRoot: boolean;
   teamsToken: string | null;

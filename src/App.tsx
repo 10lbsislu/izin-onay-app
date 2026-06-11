@@ -24,6 +24,7 @@ import {
   SendRegular,
   DocumentBulletListRegular,
   ShieldCheckmarkRegular,
+  CheckmarkCircleRegular,
 } from "@fluentui/react-icons";
 import { MsalProvider, useMsal, useIsAuthenticated } from "@azure/msal-react";
 import { PublicClientApplication } from "@azure/msal-browser";
@@ -33,6 +34,7 @@ import { getHierarchy } from "./services/requestService";
 import { RequestForm } from "./components/RequestForm";
 import { MyRequests } from "./components/MyRequests";
 import { AdminPanel } from "./components/AdminPanel";
+import { ApprovedLeaves } from "./components/ApprovedLeaves";
 import type { OrgUser } from "./types";
 
 const msalInstance = new PublicClientApplication(msalConfig);
@@ -123,7 +125,7 @@ const useStyles = makeStyles({
 });
 
 // ─── Ana içerik bileşeni ──────────────────────────────────────────────────────
-type AppTab = "yeni-talep" | "taleplerim" | "yonetici";
+type AppTab = "yeni-talep" | "taleplerim" | "onaylanan" | "yonetici";
 
 function AppContent() {
   const styles = useStyles();
@@ -135,6 +137,7 @@ function AppContent() {
   const [currentUser, setCurrentUser] = useState<OrgUser | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isTreeAdmin, setIsTreeAdmin] = useState(false);
+  const [isApprovalViewer, setIsApprovalViewer] = useState(false);
   const [hasDirectReports, setHasDirectReports] = useState(false);
   const [isRoot, setIsRoot] = useState(false);
   const [activeTab, setActiveTab] = useState<AppTab>("yeni-talep");
@@ -229,11 +232,13 @@ function AppContent() {
           const hasReports = directReports.length > 0;
           const root = !!myNode && !myNode.managerId;
           setIsTreeAdmin(treeAdmin);
+          setIsApprovalViewer(!!myNode?.isApprovalViewer);
           setHasDirectReports(hasReports);
           setIsRoot(root);
           setIsAdmin(treeAdmin || hasReports);
         } catch {
           setIsTreeAdmin(false);
+          setIsApprovalViewer(false);
           setHasDirectReports(false);
           setIsRoot(false);
           setIsAdmin(false);
@@ -337,6 +342,11 @@ function AppContent() {
           <Tab value="taleplerim" icon={<DocumentBulletListRegular />}>
             Taleplerim
           </Tab>
+          {(isApprovalViewer || isTreeAdmin) && (
+            <Tab value="onaylanan" icon={<CheckmarkCircleRegular />}>
+              Onaylanan İzinler
+            </Tab>
+          )}
           {isAdmin && (
             <Tab value="yonetici" icon={<ShieldCheckmarkRegular />}>
               Yönetici Paneli
@@ -364,6 +374,9 @@ function AppContent() {
             token={token}
             refreshKey={refreshKey}
           />
+        )}
+        {activeTab === "onaylanan" && (isApprovalViewer || isTreeAdmin) && token && (
+          <ApprovedLeaves token={token} />
         )}
         {activeTab === "yonetici" && isAdmin && token && (
           <AdminPanel
