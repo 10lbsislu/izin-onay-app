@@ -9,7 +9,7 @@
 
 const { app } = require("@azure/functions");
 const { updateRequest: updateInExcel, getAllRequests, isTreeAdmin, getApprovalViewers } = require("../shared/excelService");
-const { notifyUser, notifyApprovalViewers } = require("../shared/notifyService");
+const { notifyUser, notifyApprovalViewers, notifyRequesterByEmail } = require("../shared/notifyService");
 const { extractCaller } = require("../shared/authMiddleware");
 
 app.http("updateRequest", {
@@ -130,6 +130,13 @@ app.http("updateRequest", {
       notifyUser(updatedRequest.requesterId, updatedRequest).catch((e) =>
         context.log.warn("Kullanıcı bildirimi başarısız:", e.message)
       );
+
+      // ── Onaylandıysa: talep sahibine e-posta (Teams DM'e ek olarak) ───
+      if (status === "onaylandi") {
+        notifyRequesterByEmail(updatedRequest, caller.email).catch((e) =>
+          context.log.warn("Talep sahibine mail başarısız:", e.message)
+        );
+      }
 
       // ── Onaylandıysa: "onaylanan izin görüntüleyici"lere bildirim ─────
       if (status === "onaylandi") {

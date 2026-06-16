@@ -439,4 +439,70 @@ async function notifyApprovalViewers(request, viewers, fromEmail) {
   }
 }
 
-module.exports = { notifyChannel, notifyUser, notifyApproverByEmail, notifyApproverInTeams, notifyApprovalViewers };
+// ─── Talep Sahibine Sonuç E-postası ──────────────────────────────────────────
+
+/**
+ * Talep işlendiğinde (onay/red) talebi açan çalışana e-posta gönderir.
+ * Teams DM'e ek olarak — kullanıcı maili de görsün.
+ *
+ * @param {object} request   - Güncellenmiş talep (status onaylandi/reddedildi)
+ * @param {string} fromEmail - Gönderen kutusu (onaylayanın e-postası)
+ */
+async function notifyRequesterByEmail(request, fromEmail) {
+  const to = request.requesterEmail;
+  if (!to) {
+    console.warn("notifyRequesterByEmail: talep sahibinin maili yok, atlandı.");
+    return;
+  }
+  const client = getAppGraphClient();
+  const isApproved = request.status === "onaylandi";
+  const dateLine = formatRequestDateRange(request);
+  const sureLine = request.leaveType === "saatlik"
+    ? `${request.totalDays} iş günü karşılığı (saatlik)`
+    : `${request.totalDays} iş günü`;
+  const approverName = request.approverName || "Yöneticiniz";
+  const subject = isApproved
+    ? "✅ İzin Talebiniz Onaylandı"
+    : "❌ İzin Talebiniz Reddedildi";
+
+  const html = `
+    <div style="font-family: Segoe UI, Arial, sans-serif; max-width: 560px;">
+      <h2 style="color:${isApproved ? "#107c10" : "#a4262c"}; margin-bottom: 8px;">${subject}</h2>
+      <p><strong>${request.requesterName}</strong>, izin talebiniz
+         <strong>${approverName}</strong> tarafından ${isApproved ? "onaylandı" : "reddedildi"}.</p>
+      <table style="border-collapse: collapse; margin: 12px 0;">
+        <tr><td style="padding:4px 12px 4px 0;"><b>İzin Türü:</b></td><td>${izinTuruLabel(request.leaveType)}</td></tr>
+        <tr><td style="padding:4px 12px 4px 0;"><b>Tarih:</b></td><td>${dateLine}</td></tr>
+        <tr><td style="padding:4px 12px 4px 0;"><b>Süre:</b></td><td>${sureLine}</td></tr>
+        <tr><td style="padding:4px 12px 4px 0;"><b>İşlem Yapan:</b></td><td>${approverName}</td></tr>
+        ${request.approverComment ? `<tr><td style="padding:4px 12px 4px 0;vertical-align:top;"><b>Yorum:</b></td><td>${request.approverComment}</td></tr>` : ""}
+      </table>
+      <p style="color:#888; font-size:12px; margin-top:24px;">
+        Bu e-posta İzin Onay Sistemi tarafından otomatik gönderildi.
+      </p>
+    </div>
+  `;
+
+  // Onaylayanın kutusundan gönder; yoksa talep sahibinin kendi kutusuna düş
+  const senderUserId = fromEmail || to;
+
+  console.log(`[REQUESTER MAIL] gönderiliyor: from=${senderUserId} to=${to} status=${request.status}`);
+
+  try {
+    await client
+      .api(`/users/${senderUserId}/sendMail`)
+      .post({
+        message: {
+          subject,
+          body: { contentType: "HTML", content: html },
+          toRecipients: [{ emailAddress: { address: to } }],
+        },
+        saveToSentItems: false,
+      });
+    console.log(`[REQUESTER MAIL] BAŞARILI: ${to}`);
+  } catch (err) {
+    console.error(`[REQUESTER MAIL] BAŞARISIZ from=${senderUserId} to=${to}:`, err.message);
+  }
+}
+
+module.exports = { notifyChannel, notifyUser, notifyApproverByEmail, notifyApproverInTeams, notifyApprovalViewers, notifyRequesterByEmail };
