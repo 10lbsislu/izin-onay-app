@@ -107,6 +107,51 @@ export async function getApprovedLeaves(token: string): Promise<LeaveRequest[]> 
   return res.requests;
 }
 
+// ─── Takvim (izinler + doğum günleri) ─────────────────────────────────────────
+
+export interface CalendarLeave {
+  id: string;
+  requesterName: string;
+  leaveType: LeaveRequest["leaveType"];
+  startDate: string;
+  endDate: string;
+  startTime?: string;
+  endTime?: string;
+}
+
+export interface Birthday {
+  id: string;
+  name: string;
+  birthDate: string; // "MM-DD"
+}
+
+export interface CalendarResponse {
+  leaves: CalendarLeave[];
+  birthdays: Birthday[];
+}
+
+/** Takvim verisi — herkese açık (kimliği doğrulanmış her kullanıcı) */
+export async function getCalendar(token: string): Promise<CalendarResponse> {
+  return apiFetch<CalendarResponse>("/getCalendar", { method: "GET" }, token);
+}
+
+export async function addBirthday(token: string, name: string, birthDate: string): Promise<Birthday> {
+  const res = await apiFetch<{ birthday: Birthday }>(
+    "/manageBirthdays",
+    { method: "POST", body: JSON.stringify({ action: "add", name, birthDate }) },
+    token
+  );
+  return res.birthday;
+}
+
+export async function removeBirthday(token: string, id: string): Promise<void> {
+  await apiFetch(
+    "/manageBirthdays",
+    { method: "POST", body: JSON.stringify({ action: "remove", id }) },
+    token
+  );
+}
+
 // ─── Hiyerarşi ────────────────────────────────────────────────────────────────
 
 export async function getHierarchy(token: string): Promise<HierarchyNode[]> {

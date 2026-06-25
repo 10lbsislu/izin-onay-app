@@ -25,6 +25,7 @@ import {
   DocumentBulletListRegular,
   ShieldCheckmarkRegular,
   CheckmarkCircleRegular,
+  CalendarLtrRegular,
 } from "@fluentui/react-icons";
 import { MsalProvider, useMsal, useIsAuthenticated } from "@azure/msal-react";
 import { PublicClientApplication } from "@azure/msal-browser";
@@ -35,6 +36,7 @@ import { RequestForm } from "./components/RequestForm";
 import { MyRequests } from "./components/MyRequests";
 import { AdminPanel } from "./components/AdminPanel";
 import { ApprovedLeaves } from "./components/ApprovedLeaves";
+import { CalendarView } from "./components/CalendarView";
 import type { OrgUser } from "./types";
 
 const msalInstance = new PublicClientApplication(msalConfig);
@@ -125,7 +127,7 @@ const useStyles = makeStyles({
 });
 
 // ─── Ana içerik bileşeni ──────────────────────────────────────────────────────
-type AppTab = "yeni-talep" | "taleplerim" | "onaylanan" | "yonetici";
+type AppTab = "yeni-talep" | "taleplerim" | "takvim" | "onaylanan" | "yonetici";
 
 function AppContent() {
   const styles = useStyles();
@@ -342,6 +344,9 @@ function AppContent() {
           <Tab value="taleplerim" icon={<DocumentBulletListRegular />}>
             Taleplerim
           </Tab>
+          <Tab value="takvim" icon={<CalendarLtrRegular />}>
+            Takvim
+          </Tab>
           {(isApprovalViewer || isTreeAdmin) && (
             <Tab value="onaylanan" icon={<CheckmarkCircleRegular />}>
               Onaylanan İzinler
@@ -374,6 +379,9 @@ function AppContent() {
             token={token}
             refreshKey={refreshKey}
           />
+        )}
+        {activeTab === "takvim" && token && (
+          <CalendarView token={token} />
         )}
         {activeTab === "onaylanan" && (isApprovalViewer || isTreeAdmin) && token && (
           <ApprovedLeaves token={token} />

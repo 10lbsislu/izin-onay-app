@@ -282,6 +282,51 @@ async function setApprovalViewer(userId, value) {
   return updated;
 }
 
+// ─── Doğum Günleri ───────────────────────────────────────────────────────────
+// Sheet "DogumGunleri" → Tablo: DogumGunleriTablosu
+// Kolonlar: id | name | birthDate ("MM-DD" formatında, yıl önemsiz)
+
+const BIRTHDAY_COLS = ["id", "name", "birthDate"];
+
+function rowToBirthday(row) {
+  const obj = {};
+  BIRTHDAY_COLS.forEach((col, i) => { obj[col] = row[i] ?? ""; });
+  return obj;
+}
+
+async function getAllBirthdays() {
+  const client = getAppGraphClient();
+  try {
+    const res = await client
+      .api(`${workbookBase()}/tables/DogumGunleriTablosu/rows`)
+      .get();
+    return (res.value || []).map((r) => rowToBirthday(r.values[0]));
+  } catch (err) {
+    console.error("getAllBirthdays error:", err.message);
+    return [];
+  }
+}
+
+async function addBirthday(birthday) {
+  const client = getAppGraphClient();
+  const row = BIRTHDAY_COLS.map((col) => birthday[col] ?? "");
+  await client
+    .api(`${workbookBase()}/tables/DogumGunleriTablosu/rows/add`)
+    .post({ values: [row] });
+  return birthday;
+}
+
+async function removeBirthday(id) {
+  const client = getAppGraphClient();
+  const res = await client.api(`${workbookBase()}/tables/DogumGunleriTablosu/rows`).get();
+  const rows = res.value || [];
+  const index = rows.findIndex((r) => r.values[0][0] === id);
+  if (index === -1) throw new Error(`Doğum günü kaydı bulunamadı: ${id}`);
+  await client
+    .api(`${workbookBase()}/tables/DogumGunleriTablosu/rows/itemAt(index=${index})`)
+    .delete();
+}
+
 module.exports = {
   getAllRequests,
   getRequestsByUser,
@@ -300,4 +345,7 @@ module.exports = {
   getApprovalViewers,
   isApprovalViewer,
   setApprovalViewer,
+  getAllBirthdays,
+  addBirthday,
+  removeBirthday,
 };

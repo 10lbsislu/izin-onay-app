@@ -17,6 +17,7 @@ import {
   CheckmarkCircleRegular, DismissCircleRegular,
   ArrowClockwiseRegular, PeopleRegular,
   ClipboardTaskListLtrRegular, LockClosedRegular,
+  GiftRegular,
 } from "@fluentui/react-icons";
 import type { OrgUser, LeaveStatus } from "../types";
 import type { EnrichedLeaveRequest, GetRequestsResponse } from "../services/requestService";
@@ -25,6 +26,7 @@ import { getRequests, updateRequestStatus } from "../services/requestService";
 import { StatusBadge } from "./StatusBadge";
 import { VisibilityBadge } from "./VisibilityBadge";
 import { HierarchyEditor } from "./HierarchyEditor";
+import { BirthdayManager } from "./BirthdayManager";
 
 const useStyles = makeStyles({
   panel: { display: "flex", flexDirection: "column", gap: "16px" },
@@ -71,7 +73,7 @@ const useStyles = makeStyles({
   },
 });
 
-type AdminTab = "pending" | "all" | "hierarchy";
+type AdminTab = "pending" | "all" | "hierarchy" | "birthdays";
 
 interface AdminPanelProps {
   currentUser: OrgUser;
@@ -324,6 +326,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser, token, isTr
           {isTreeAdmin && (
             <Tab value="hierarchy" icon={<PeopleRegular />}>Hiyerarşi Yönetimi</Tab>
           )}
+          {isTreeAdmin && (
+            <Tab value="birthdays" icon={<GiftRegular />}>Doğum Günleri</Tab>
+          )}
         </TabList>
 
         {/* ── Bekleyen Talepler ─── */}
@@ -450,6 +455,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser, token, isTr
         {/* ── Hiyerarşi Yönetimi ─── */}
         {activeTab === "hierarchy" && isTreeAdmin && (
           <HierarchyEditor token={token} currentUserId={currentUser.id} />
+        )}
+
+        {/* ── Doğum Günleri ─── */}
+        {activeTab === "birthdays" && isTreeAdmin && (
+          <BirthdayManager token={token} />
         )}
       </div>
     </>

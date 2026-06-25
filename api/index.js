@@ -7,3 +7,5 @@ require("./getApprovers");
 require("./manageApprovers");
 require("./getApprovedLeaves");
 require("./remindPending");
+require("./getCalendar");
+require("./manageBirthdays");
