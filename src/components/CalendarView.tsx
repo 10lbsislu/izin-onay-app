@@ -1,7 +1,8 @@
 /**
  * CalendarView.tsx
  * "Takvim" sekmesi — HERKESE AÇIK.
- * Seçili 1 ayı grid olarak gösterir; o aydaki onaylı izinler ve doğum günleri işaretlenir.
+ * BUGÜNDEN itibaren 30 günü gösterir (geçmiş gösterilmez).
+ * Her güne o günkü onaylı izinler ve doğum günleri işaretlenir.
  */
 
 import React, { useEffect, useState, useCallback, useMemo } from "react";
@@ -9,16 +10,16 @@ import {
   Text, Spinner, Button, Card, makeStyles, tokens,
   MessageBar, MessageBarBody, Badge,
 } from "@fluentui/react-components";
-import {
-  ChevronLeftRegular, ChevronRightRegular, ArrowClockwiseRegular,
-} from "@fluentui/react-icons";
+import { ArrowClockwiseRegular } from "@fluentui/react-icons";
 import type { CalendarLeave, Birthday } from "../services/requestService";
 import { getCalendar } from "../services/requestService";
 import { LEAVE_TYPE_LABELS } from "../types";
 
-const MONTHS = [
-  "Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran",
-  "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık",
+const WINDOW_DAYS = 30;
+
+const MONTHS_SHORT = [
+  "Oca", "Şub", "Mar", "Nis", "May", "Haz",
+  "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara",
 ];
 const WEEKDAYS = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
 
@@ -32,8 +33,7 @@ const LEAVE_COLOR: Record<string, string> = {
 const useStyles = makeStyles({
   panel: { display: "flex", flexDirection: "column", gap: "12px", maxWidth: "1000px", margin: "0 auto" },
   header: { display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "8px" },
-  navGroup: { display: "flex", alignItems: "center", gap: "8px" },
-  monthTitle: { minWidth: "160px", textAlign: "center" },
+  rangeText: { color: tokens.colorNeutralForeground3 },
   legend: { display: "flex", gap: "12px", flexWrap: "wrap", alignItems: "center", padding: "4px 2px" },
   legendItem: { display: "flex", alignItems: "center", gap: "6px" },
   dot: { width: "10px", height: "10px", borderRadius: "50%", display: "inline-block" },
@@ -52,7 +52,9 @@ const useStyles = makeStyles({
     padding: "4px 5px", display: "flex", flexDirection: "column", gap: "3px",
   },
   dayCellMuted: { backgroundColor: tokens.colorNeutralBackground2 },
-  dayNum: { fontSize: tokens.fontSizeBase200, color: tokens.colorNeutralForeground3, alignSelf: "flex-end" },
+  dayHead: { display: "flex", justifyContent: "space-between", alignItems: "center" },
+  monthTag: { fontSize: "10px", fontWeight: tokens.fontWeightSemibold, color: tokens.colorBrandForeground1 },
+  dayNum: { fontSize: tokens.fontSizeBase200, color: tokens.colorNeutralForeground3 },
   todayNum: {
     backgroundColor: tokens.colorBrandBackground, color: tokens.colorNeutralForegroundOnBrand,
     borderRadius: "50%", width: "20px", height: "20px", display: "flex",
@@ -70,16 +72,22 @@ const useStyles = makeStyles({
   },
 });
 
-function ymd(y: number, m: number, d: number): string {
-  return `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+function ymd(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+function mmdd(d: Date): string {
+  return `${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+function addDays(base: Date, n: number): Date {
+  const d = new Date(base);
+  d.setDate(d.getDate() + n);
+  return d;
 }
 
 interface CalendarViewProps { token: string; }
 
 export const CalendarView: React.FC<CalendarViewProps> = ({ token }) => {
   const styles = useStyles();
-  const now = new Date();
-  const [cursor, setCursor] = useState<{ y: number; m: number }>({ y: now.getFullYear(), m: now.getMonth() });
   const [leaves, setLeaves] = useState<CalendarLeave[]>([]);
   const [birthdays, setBirthdays] = useState<Birthday[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -100,29 +108,36 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ token }) => {
 
   useEffect(() => { load(); }, [load]);
 
-  const todayStr = ymd(now.getFullYear(), now.getMonth(), now.getDate());
-
-  // Ayın günlerini ve baştaki boşlukları hesapla (Pazartesi başlangıçlı)
-  const cells = useMemo(() => {
-    const firstDow = (new Date(cursor.y, cursor.m, 1).getDay() + 6) % 7; // Pzt=0
-    const daysInMonth = new Date(cursor.y, cursor.m + 1, 0).getDate();
-    const arr: (number | null)[] = [];
-    for (let i = 0; i < firstDow; i++) arr.push(null);
-    for (let d = 1; d <= daysInMonth; d++) arr.push(d);
+  // Bugünden itibaren 30 gün + grid hizalaması (Pazartesi başlangıçlı)
+  const { cells, todayStr, rangeLabel } = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const days: Date[] = Array.from({ length: WINDOW_DAYS }, (_, i) => addDays(today, i));
+    const startDow = (today.getDay() + 6) % 7; // Pzt=0
+    const arr: (Date | null)[] = [];
+    for (let i = 0; i < startDow; i++) arr.push(null);
+    days.forEach((d) => arr.push(d));
     while (arr.length % 7 !== 0) arr.push(null);
-    return arr;
-  }, [cursor]);
+    const last = days[days.length - 1];
+    const range = `${today.getDate()} ${MONTHS_SHORT[today.getMonth()]} – ${last.getDate()} ${MONTHS_SHORT[last.getMonth()]} ${last.getFullYear()}`;
+    return { cells: arr, todayStr: ymd(today), rangeLabel: range };
+  }, []);
 
   const leavesOnDay = (dateStr: string): CalendarLeave[] =>
     leaves.filter((l) => l.startDate && l.endDate && dateStr >= l.startDate && dateStr <= l.endDate);
 
-  const mmdd = (m: number, d: number) => `${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-  const birthdaysOnDay = (d: number): Birthday[] =>
-    birthdays.filter((b) => b.birthDate === mmdd(cursor.m, d));
+  const birthdaysOnDate = (d: Date): Birthday[] => {
+    const key = mmdd(d);
+    return birthdays.filter((b) => b.birthDate === key);
+  };
 
-  const prevMonth = () => setCursor((c) => (c.m === 0 ? { y: c.y - 1, m: 11 } : { y: c.y, m: c.m - 1 }));
-  const nextMonth = () => setCursor((c) => (c.m === 11 ? { y: c.y + 1, m: 0 } : { y: c.y, m: c.m + 1 }));
-  const goToday = () => setCursor({ y: now.getFullYear(), m: now.getMonth() });
+  // Penceredeki olay sayıları (özet)
+  const summary = useMemo(() => {
+    const dates = cells.filter((c): c is Date => c !== null);
+    const bd = birthdays.filter((b) => dates.some((d) => mmdd(d) === b.birthDate)).length;
+    const lv = leaves.filter((l) => dates.some((d) => { const s = ymd(d); return s >= l.startDate && s <= l.endDate; })).length;
+    return { bd, lv };
+  }, [cells, birthdays, leaves]);
 
   if (isLoading) {
     return <div style={{ display: "flex", justifyContent: "center", padding: "48px" }}>
@@ -132,14 +147,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ token }) => {
   return (
     <div className={styles.panel}>
       <div className={styles.header}>
-        <Text weight="semibold" size={500}>Takvim</Text>
-        <div className={styles.navGroup}>
-          <Button appearance="subtle" icon={<ArrowClockwiseRegular />} onClick={load} title="Yenile" />
-          <Button appearance="subtle" size="small" onClick={goToday}>Bugün</Button>
-          <Button appearance="subtle" icon={<ChevronLeftRegular />} onClick={prevMonth} title="Önceki ay" />
-          <Text weight="semibold" size={400} className={styles.monthTitle}>{MONTHS[cursor.m]} {cursor.y}</Text>
-          <Button appearance="subtle" icon={<ChevronRightRegular />} onClick={nextMonth} title="Sonraki ay" />
+        <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.3 }}>
+          <Text weight="semibold" size={500}>Takvim — Önümüzdeki 30 Gün</Text>
+          <Text size={200} className={styles.rangeText}>{rangeLabel}</Text>
         </div>
+        <Button appearance="subtle" icon={<ArrowClockwiseRegular />} onClick={load} title="Yenile">Yenile</Button>
       </div>
 
       <div className={styles.legend}>
@@ -161,13 +173,17 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ token }) => {
           {WEEKDAYS.map((w) => <div key={w} className={styles.weekdayCell}>{w}</div>)}
           {cells.map((d, i) => {
             if (d === null) return <div key={`e${i}`} className={`${styles.dayCell} ${styles.dayCellMuted}`} />;
-            const dateStr = ymd(cursor.y, cursor.m, d);
+            const dateStr = ymd(d);
             const dayLeaves = leavesOnDay(dateStr);
-            const dayBirthdays = birthdaysOnDay(d);
+            const dayBirthdays = birthdaysOnDate(d);
             const isToday = dateStr === todayStr;
+            const showMonth = d.getDate() === 1 || dateStr === todayStr;
             return (
               <div key={dateStr} className={styles.dayCell}>
-                <span className={isToday ? styles.todayNum : styles.dayNum}>{d}</span>
+                <div className={styles.dayHead}>
+                  <span className={styles.monthTag}>{showMonth ? MONTHS_SHORT[d.getMonth()] : ""}</span>
+                  <span className={isToday ? styles.todayNum : styles.dayNum}>{d.getDate()}</span>
+                </div>
                 {dayBirthdays.map((b) => (
                   <span key={b.id} className={styles.birthday} title={`🎂 ${b.name}`}>🎂 {b.name}</span>
                 ))}
@@ -185,8 +201,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ token }) => {
       </Card>
 
       <Text size={100} style={{ color: "var(--colorNeutralForeground3)" }}>
-        <Badge appearance="tint" size="small">{leaves.length}</Badge> onaylı izin ·{" "}
-        <Badge appearance="tint" size="small">{birthdays.length}</Badge> kayıtlı doğum günü
+        Bu pencerede: <Badge appearance="tint" size="small">{summary.lv}</Badge> izin ·{" "}
+        <Badge appearance="tint" size="small">{summary.bd}</Badge> doğum günü
       </Text>
     </div>
   );
