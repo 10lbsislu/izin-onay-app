@@ -128,13 +128,13 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ token }) => {
 
   const birthdaysOnDate = (d: Date): Birthday[] => {
     const key = mmdd(d);
-    return birthdays.filter((b) => b.birthDate === key);
+    return birthdays.filter((b) => String(b.birthDate) === key);
   };
 
   // Penceredeki olay sayıları (özet)
   const summary = useMemo(() => {
     const dates = cells.filter((c): c is Date => c !== null);
-    const bd = birthdays.filter((b) => dates.some((d) => mmdd(d) === b.birthDate)).length;
+    const bd = birthdays.filter((b) => dates.some((d) => mmdd(d) === String(b.birthDate))).length;
     const lv = leaves.filter((l) => dates.some((d) => { const s = ymd(d); return s >= l.startDate && s <= l.endDate; })).length;
     return { bd, lv };
   }, [cells, birthdays, leaves]);

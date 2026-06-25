@@ -6,13 +6,15 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import {
-  Card, Text, Spinner, Button, Input, Select, Field, Badge,
+  Card, Text, Spinner, Button, Select, Field, Badge,
   makeStyles, tokens, Divider,
   Toast, ToastTitle, ToastBody, useToastController, useId, Toaster,
 } from "@fluentui/react-components";
 import { PersonAddRegular, DeleteRegular, ArrowClockwiseRegular } from "@fluentui/react-icons";
 import type { Birthday } from "../services/requestService";
+import type { OrgUser } from "../types";
 import { getCalendar, addBirthday, removeBirthday } from "../services/requestService";
+import { UserPicker } from "./UserPicker";
 
 const MONTHS = [
   "Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran",
@@ -31,8 +33,8 @@ const useStyles = makeStyles({
 });
 
 function fmtBirthday(mmdd: string): string {
-  const [mm, dd] = mmdd.split("-").map(Number);
-  if (!mm || !dd) return mmdd;
+  const [mm, dd] = String(mmdd).split("-").map(Number);
+  if (!mm || !dd) return String(mmdd);
   return `${dd} ${MONTHS[mm - 1] ?? ""}`;
 }
 
@@ -45,7 +47,7 @@ export const BirthdayManager: React.FC<Props> = ({ token }) => {
 
   const [birthdays, setBirthdays] = useState<Birthday[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [name, setName] = useState("");
+  const [pickedUser, setPickedUser] = useState<OrgUser | null>(null);
   const [month, setMonth] = useState("01");
   const [day, setDay] = useState("01");
   const [saving, setSaving] = useState(false);
@@ -57,7 +59,9 @@ export const BirthdayManager: React.FC<Props> = ({ token }) => {
     setIsLoading(true);
     try {
       const data = await getCalendar(token);
-      const sorted = [...data.birthdays].sort((a, b) => a.birthDate.localeCompare(b.birthDate));
+      const sorted = [...data.birthdays].sort((a, b) =>
+        String(a.birthDate).localeCompare(String(b.birthDate))
+      );
       setBirthdays(sorted);
     } catch (err) {
       toast("Yükleme Hatası", String(err), "error");
@@ -70,12 +74,12 @@ export const BirthdayManager: React.FC<Props> = ({ token }) => {
   useEffect(() => { load(); }, [load]);
 
   const handleAdd = async () => {
-    if (!name.trim()) { toast("Eksik Alan", "İsim giriniz.", "error"); return; }
+    if (!pickedUser) { toast("Eksik Alan", "Kuruluştan bir kişi seçiniz.", "error"); return; }
     setSaving(true);
     try {
-      await addBirthday(token, name.trim(), `${month}-${day}`);
-      toast("Eklendi", `${name.trim()} doğum günü eklendi.`);
-      setName("");
+      await addBirthday(token, pickedUser.displayName, `${month}-${day}`);
+      toast("Eklendi", `${pickedUser.displayName} doğum günü eklendi.`);
+      setPickedUser(null);
       load();
     } catch (err) {
       toast("Hata", String(err), "error");
@@ -104,9 +108,14 @@ export const BirthdayManager: React.FC<Props> = ({ token }) => {
         <Text weight="semibold" size={400}>Doğum Günü Ekle</Text>
         <Divider style={{ margin: "8px 0 12px" }} />
         <div className={styles.addBar}>
-          <Field label="İsim" style={{ flex: 1, minWidth: "200px" }}>
-            <Input value={name} onChange={(_, d) => setName(d.value)} placeholder="Ad Soyad" />
-          </Field>
+          <div style={{ flex: 1, minWidth: "240px" }}>
+            <UserPicker
+              label="Kişi (kuruluştan ara)"
+              token={token}
+              value={pickedUser}
+              onChange={setPickedUser}
+            />
+          </div>
           <Field label="Ay">
             <Select value={month} onChange={(_, d) => setMonth(d.value)} style={{ width: "130px" }}>
               {MONTHS.map((m, i) => (

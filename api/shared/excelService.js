@@ -288,9 +288,37 @@ async function setApprovalViewer(userId, value) {
 
 const BIRTHDAY_COLS = ["id", "name", "birthDate"];
 
+/**
+ * birthDate hücresini her zaman "MM-DD" stringine normalize eder.
+ * Excel "06-25" gibi değerleri tarihe çevirip seri numarası olarak saklayabilir;
+ * ayrıca biz 4 haneli "MMDD" sayısı olarak yazıyoruz. Tüm durumları ele alır:
+ *  - "06-25"  → "06-25"
+ *  - 625 / "0625" (MMDD)         → "06-25"
+ *  - 46198 (Excel tarih serisi)  → "06-25"
+ */
+function normalizeMMDD(value) {
+  if (value === null || value === undefined || value === "") return "";
+  const s = String(value).trim();
+  if (/^\d{1,2}-\d{1,2}$/.test(s)) {
+    const [mm, dd] = s.split("-");
+    return `${mm.padStart(2, "0")}-${dd.padStart(2, "0")}`;
+  }
+  const num = Number(s.replace(/[^\d.]/g, ""));
+  if (isNaN(num)) return s;
+  // Büyük sayı = Excel tarih serisi
+  if (num > 1231) {
+    const date = new Date(Math.round((num - 25569) * 86400 * 1000));
+    return `${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`;
+  }
+  // Küçük sayı = MMDD
+  const mmdd = String(Math.round(num)).padStart(4, "0");
+  return `${mmdd.slice(0, 2)}-${mmdd.slice(2, 4)}`;
+}
+
 function rowToBirthday(row) {
   const obj = {};
   BIRTHDAY_COLS.forEach((col, i) => { obj[col] = row[i] ?? ""; });
+  obj.birthDate = normalizeMMDD(obj.birthDate);
   return obj;
 }
 
@@ -309,7 +337,12 @@ async function getAllBirthdays() {
 
 async function addBirthday(birthday) {
   const client = getAppGraphClient();
-  const row = BIRTHDAY_COLS.map((col) => birthday[col] ?? "");
+  // birthDate'i dashsız 4 haneli "MMDD" sakla → Excel tarihe çeviremez, belirsizlik olmaz
+  const stored = {
+    ...birthday,
+    birthDate: String(birthday.birthDate || "").replace(/\D/g, "").padStart(4, "0"),
+  };
+  const row = BIRTHDAY_COLS.map((col) => stored[col] ?? "");
   await client
     .api(`${workbookBase()}/tables/DogumGunleriTablosu/rows/add`)
     .post({ values: [row] });
