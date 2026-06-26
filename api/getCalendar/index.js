@@ -8,7 +8,9 @@
  */
 
 const { app } = require("@azure/functions");
-const { getAllRequests, getAllBirthdays } = require("../shared/excelService");
+const {
+  getAllRequests, getAllBirthdays, getDirectReports, isTreeAdmin, isApprovalViewer,
+} = require("../shared/excelService");
 const { extractCaller } = require("../shared/authMiddleware");
 
 app.http("getCalendar", {
@@ -30,14 +32,23 @@ app.http("getCalendar", {
     }
 
     try {
-      const [allRequests, birthdays] = await Promise.all([
+      const [allRequests, birthdays, directReports, treeAdmin, viewer] = await Promise.all([
         getAllRequests(),
         getAllBirthdays(),
+        getDirectReports(caller.userId),
+        isTreeAdmin(caller.userId),
+        isApprovalViewer(caller.userId),
       ]);
 
-      // Sadece onaylanan izinler; gizlilik için sınırlı alanlar (açıklama yok)
+      // Yönetici: astı olan VEYA tree admin VEYA onaylanan-izin görüntüleyici
+      const isManager = directReports.length > 0 || treeAdmin || viewer;
+
+      // Görünürlük kuralı:
+      //   - yıllık izinler → herkese açık
+      //   - saatlik/ücretsiz/diğer → yalnızca yöneticiler
       const leaves = allRequests
         .filter((r) => r.status === "onaylandi")
+        .filter((r) => isManager || r.leaveType === "yillik")
         .map((r) => ({
           id: r.id,
           requesterName: r.requesterName,
@@ -51,7 +62,7 @@ app.http("getCalendar", {
       return {
         status: 200,
         headers,
-        body: JSON.stringify({ leaves, birthdays }),
+        body: JSON.stringify({ leaves, birthdays, meta: { isManager } }),
       };
     } catch (err) {
       context.error("getCalendar hata:", err);

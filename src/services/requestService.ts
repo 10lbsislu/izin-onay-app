@@ -128,6 +128,7 @@ export interface Birthday {
 export interface CalendarResponse {
   leaves: CalendarLeave[];
   birthdays: Birthday[];
+  meta?: { isManager: boolean };
 }
 
 /** Takvim verisi — herkese açık (kimliği doğrulanmış her kullanıcı) */

@@ -90,6 +90,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ token }) => {
   const styles = useStyles();
   const [leaves, setLeaves] = useState<CalendarLeave[]>([]);
   const [birthdays, setBirthdays] = useState<Birthday[]>([]);
+  const [isManager, setIsManager] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -99,6 +100,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ token }) => {
       const data = await getCalendar(token);
       setLeaves(data.leaves);
       setBirthdays(data.birthdays);
+      setIsManager(data.meta?.isManager ?? false);
     } catch (err) {
       setError(String(err));
     } finally {
@@ -165,6 +167,14 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ token }) => {
           <span style={{ fontSize: 13 }}>🎂</span><Text size={100}>Doğum Günü</Text>
         </span>
       </div>
+
+      {!isManager && (
+        <MessageBar intent="info">
+          <MessageBarBody>
+            Takvimde yalnızca <strong>yıllık izinler</strong> gösterilir. Saatlik ve özel izinler yalnızca yöneticilere görünür.
+          </MessageBarBody>
+        </MessageBar>
+      )}
 
       {error && <MessageBar intent="error"><MessageBarBody>{error}</MessageBarBody></MessageBar>}
 
