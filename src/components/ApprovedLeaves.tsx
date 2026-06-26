@@ -20,6 +20,50 @@ import type { LeaveRequest } from "../types";
 import { LEAVE_TYPE_LABELS, formatDuration } from "../types";
 import { getApprovedLeaves } from "../services/requestService";
 
+/**
+ * Workbook'u tarayıcı indirmesi olarak kaydeder.
+ * XLSX.writeFile bazı ortamlarda (özellikle Teams masaüstü/Electron) dosya
+ * sistemine yazmaya çalışıp hata verebildiği için, açıkça Blob + <a download>
+ * yöntemi kullanılır.
+ *
+ * İndirme hata verirse (Teams/webview engeli vb.) dosya doğrudan TARAYICIDA
+ * yeni sekmede açılır — tarayıcı indirmeyi devralır.
+ */
+function downloadWorkbook(wb: XLSX.WorkBook, filename: string) {
+  const data: ArrayBuffer = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+  const blob = new Blob([data], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+
+  // Eski Edge/IE
+  const nav = navigator as Navigator & { msSaveBlob?: (b: Blob, n: string) => boolean };
+  if (typeof nav.msSaveBlob === "function") {
+    nav.msSaveBlob(blob, filename);
+    return;
+  }
+
+  const url = URL.createObjectURL(blob);
+  try {
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.rel = "noopener";
+    a.style.display = "none";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  } catch {
+    // İndirme başarısız → tarayıcıda yeni sekmede aç (tarayıcı indirir/açar)
+    const win = window.open(url, "_blank", "noopener");
+    if (!win) {
+      throw new Error("İndirme ve tarayıcıda açma engellendi (pop-up engelleyici olabilir).");
+    }
+  } finally {
+    // URL'yi bir süre canlı tut (yeni sekme yüklesin diye), sonra serbest bırak
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  }
+}
+
 const useStyles = makeStyles({
   panel: { display: "flex", flexDirection: "column", gap: "16px" },
   header: {
@@ -118,7 +162,11 @@ export const ApprovedLeaves: React.FC<ApprovedLeavesProps> = ({ token }) => {
     XLSX.utils.book_append_sheet(wb, ws, "Onaylanan İzinler");
 
     const today = new Date().toLocaleDateString("tr-TR").replace(/\./g, "-");
-    XLSX.writeFile(wb, `onaylanan-izinler-${today}.xlsx`);
+    try {
+      downloadWorkbook(wb, `onaylanan-izinler-${today}.xlsx`);
+    } catch (e) {
+      setError("Dosya indirilemedi ve tarayıcıda açılamadı. Tarayıcınızın pop-up engelleyicisine izin verip tekrar deneyin. (" + String(e) + ")");
+    }
   };
 
   if (isLoading) {
